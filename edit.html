@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<!-- 파일: edit.html — 섹션별 입력폼 + 실시간 미리보기 + 프리필/되돌리기/적색표시 + 작성안내 -->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>보고서 작성 — 교육과정 개편보고서</title>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="report.css">
+</head>
+<body data-page="edit">
+
+<header class="topbar">
+  <div class="brand">📝 <span id="hdrTitle">보고서 작성</span></div>
+  <div class="row">
+    <span id="statusBadge"></span>
+    <a class="btn ghost sm" href="index.html">목록</a>
+    <button class="btn sm" onclick="Edit.saveCurrent()">이 섹션 저장</button>
+    <button class="btn sm" onclick="Edit.submit()">제출</button>
+    <button class="btn sm" onclick="Edit.download()">HTML 다운로드</button>
+  </div>
+</header>
+
+<div class="edit-wrap">
+  <!-- 입력 -->
+  <div class="edit-pane">
+    <div class="tabbar" id="tabbar"></div>
+    <div id="editBody"></div>
+  </div>
+  <!-- 미리보기(출력과 동일 마크업/CSS) -->
+  <div class="preview-pane">
+    <div class="report" id="preview"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+<script src="render.js"></script>
+<script>
+/* =============================================================================
+ * edit.html 전용 컨트롤러
+ * ========================================================================== */
+
+/* [설정] 작성 안내 문구 — 교무팀이 매년 쉽게 고칠 수 있도록 텍스트 상수로 분리(§C2).
+ *  이 안내는 "입력 화면에만" 표시되고 출력물에는 절대 실리지 않는다. */
+var GUIDES = {
+  sec1_1: { cite: '(교육부 기관평가인증) 대학의 교육목표·인재상 실현을 위해 교육과정을 구성하고, 학과 교육목표·전공역량과 전공교육과정이 연계되어 있는가?',
+            tips: ['대학 열(이념·목적·U1~U6·인재상)은 고정값입니다.', '수정사항은 자동으로 빨간색 표시됩니다.'] },
+  sec1_2: { cite: '(교육부 기관평가인증) 학과별 교육목표 및 전공능력(역량)과 전공교육과정은 연계되어 있는가?',
+            tips: ['학과 교육목표는 3~4개만(6개 전부 옮겨쓰지 않음).', '배양역량에 C코드 병기 필수.', '성과증거는 학생이 내보이는 산출물(만족도·수강생 수 불가).', '비교과는 온/오프 구분 표기.'] },
+  sec1_3: { cite: '(교육부 역량진단평가지표) 교육과정 편성의 적절성 — 수준단계별 체계화, 트렌드 반영여부.',
+            tips: ['과목명만 기재. 1학년 과목도 필요시 상위 난이도 배치 가능.', '동시 개설학기는 학기마다 표기하되, "1학기+하계 동시 개설은 1번만 입력".', '주관/공통/타과활용 구분. 개·폐설 과목은 적색 표시.'] },
+  sec2:   { cite: '(교육부 기관평가인증) 학생·사회·학문적 요구를 반영해 교육과정을 지속 개선하고 있는가?',
+            tips: ['교육과정 변경이 있을 때만 작성. 없으면 "변경 없음" 체크.', '근거는 URL 기재(각주 자동번호). 교무처 제공 재학생 조사결과는 제출 제외.'] },
+  sec3_1: { cite: '변경사항 코드 ①신설 ②폐지 ③과목명변경 ④학기변경 ⑤학년변경 ⑥학점변경 ⑦주관학과변경. 신설·폐지는 1행 1건.',
+            tips: ['①신설 선택 시 별지1 교과목기획서 작성 필요.', '교육과정작성표(엑셀)와 상이하지 않도록 확인(엑셀 우선).'] },
+  sec3_2: { cite: '팀티칭: 복수 교원이 교과목 제작·운영. 강의제작 참여교원만 원반 주담당 가능.', tips: [] },
+  sec3_3: { cite: '[별지1] 핵심역량 2~4개 체크 → 각 내 하위역량 1개 이상. 개설 타당성은 정량 결과 필수.',
+            tips: ['교과목 한글명은 띄어쓰기 없이 15자 이하.'] }
+};
+
+var TABS = [
+  { id: 'sec1_1', label: '1-1 교육목표' },
+  { id: 'sec1_2', label: '1-2 체계표' },
+  { id: 'sec1_3', label: '1-3 로드맵' },
+  { id: 'sec2',   label: '2 개편방향' },
+  { id: 'sec3_1', label: '3-1 변경내역' },
+  { id: 'sec3_2', label: '3-2 팀티칭' },
+  { id: 'sec3_3', label: '별지1 기획서' }
+];
+
+var Edit = (function () {
+  var state = { reportId: '', data: null, section: 'sec1_1', baseUpdatedAt: '', locked: false, canSubmit: true };
+  var previewTimer = null;
+
+  function init() {
+    state.reportId = U.param('report');
+    Auth.init(function () { load(); });
+  }
+
+  function load() {
+    API.call('me', {}).then(function (m) { state.canSubmit = (m.me.submitYn === 'Y'); });
+    API.call('getReport', { reportId: state.reportId }).then(function (d) {
+      state.data = d;
+      state.baseUpdatedAt = d.meta.updatedAt || '';
+      state.locked = (d.meta.status === '잠금');
+      U.el('hdrTitle').textContent = d.meta.year + '학년도 ' + d.meta.deptName;
+      U.el('statusBadge').innerHTML = U.statusBadge(d.meta.status);
+      recoverBackups();          // 서버 저장분보다 최신인 로컬 백업이 있으면 복구 제안(§7-2)
+      renderTabs();
+      show('sec1_1');
+      refreshPreview();
+    }).catch(function (e) { U.toast(e.message || '불러오기 실패', true); });
+  }
+
+  /* 미저장 로컬 백업 복구: 서버 최종수정보다 나중에 백업된 섹션이 있으면 한 번만 확인 후 반영. */
+  function recoverBackups() {
+    var serverMs = Date.parse(state.baseUpdatedAt || '') || 0;
+    var pending = [];
+    TABS.forEach(function (t) {
+      var bk = Backup.load(state.reportId, t.id);
+      if (bk && bk.t > serverMs + 1000 && bk.payload) pending.push({ sec: t.id, bk: bk });
+    });
+    if (!pending.length) return;
+    var names = pending.map(function (p) { return p.sec; }).join(', ');
+    if (confirm('저장되지 않은 임시 백업이 있습니다(' + names + ').\n복구할까요? (취소하면 서버 저장본을 사용)')) {
+      pending.forEach(function (p) { state.data[p.sec] = p.bk.payload; });
+      U.toast('임시 백업을 복구했습니다. 확인 후 [이 섹션 저장] 하세요.');
+    } else {
+      pending.forEach(function (p) { Backup.clear(state.reportId, p.sec); });
+    }
+  }
+
+  function renderTabs() {
+    U.el('tabbar').innerHTML = TABS.map(function (t) {
+      return '<div class="tab' + (t.id === state.section ? ' active' : '') + '" onclick="Edit.show(\'' + t.id + '\')">' + t.label + '</div>';
+    }).join('');
+  }
+
+  function show(sec) {
+    state.section = sec; renderTabs();
+    var host = U.el('editBody');
+    host.innerHTML = guideHtml(sec) + '<div id="secForm"></div>' + toolbarHtml();
+    Editors[sec](U.el('secForm'));
+  }
+
+  function guideHtml(sec) {
+    var g = GUIDES[sec]; if (!g) return '';
+    return '<details class="guide" open><summary>작성 안내 (출력물에는 포함되지 않음)</summary>' +
+      '<div class="guide-body"><div class="cite">' + U.esc(g.cite) + '</div>' +
+      '<ul>' + (g.tips || []).map(function (t) { return '<li>' + U.esc(t) + '</li>'; }).join('') + '</ul></div></details>';
+  }
+  function toolbarHtml() {
+    return '<div class="toolbar"><button class="btn" onclick="Edit.saveCurrent()">이 섹션 저장</button>' +
+      '<button class="btn ghost" onclick="Edit.refreshPreview()">미리보기 새로고침</button>' +
+      (state.locked ? '<span class="warnmsg">마감된 보고서입니다(열람·다운로드만).</span>' : '') + '</div>';
+  }
+
+  /* 값 변경 시: 미리보기 갱신 + 로컬백업 */
+  function touched() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(function () {
+      refreshPreview();
+      Backup.save(state.reportId, state.section, state.data[state.section]);
+    }, 400);
+  }
+  function refreshPreview() {
+    U.el('preview').innerHTML = Render.buildReport(state.data);
+  }
+
+  /* 저장 */
+  function saveCurrent() {
+    if (state.locked) return U.toast('마감된 보고서입니다.', true);
+    var sec = state.section;
+    var payload = Serialize[sec] ? Serialize[sec]() : state.data[sec];
+    API.call('saveSection', { reportId: state.reportId, section: sec, payload: payload, baseUpdatedAt: state.baseUpdatedAt })
+      .then(function (r) {
+        state.baseUpdatedAt = r.updatedAt || state.baseUpdatedAt;
+        Backup.clear(state.reportId, sec);
+        U.toast('저장되었습니다.');
+      }).catch(function (e) { U.toast(e.message || '저장 실패(로컬 백업 유지)', true); });
+  }
+
+  function submit() {
+    if (!state.canSubmit) return U.toast('제출 권한이 없습니다(교수자에게 요청).', true);
+    API.call('submitReport', { reportId: state.reportId }).then(function (r) {
+      if (!r.submitted && r.warnings && r.warnings.length) {
+        if (confirm('경고:\n- ' + r.warnings.join('\n- ') + '\n\n그래도 제출할까요?')) {
+          API.call('submitReport', { reportId: state.reportId, confirm: true }).then(function () { U.toast('제출 완료'); load(); });
+        }
+      } else { U.toast('제출 완료'); load(); }
+    }).catch(function (e) { U.toast(e.message || '제출 실패', true); });
+  }
+
+  function download() {
+    API.call('exportPayload', { reportId: state.reportId }).then(function (d) { Render.download(d); });
+  }
+
+  return { init: init, show: show, saveCurrent: saveCurrent, submit: submit, download: download,
+           refreshPreview: refreshPreview, state: state, touched: touched };
+})();
+
+/* ═══════════════════ 섹션 편집기 ═══════════════════ */
+var Editors = {
+  /* ── 1-1 ── */
+  sec1_1: function (host) {
+    var s = Edit.state.data.sec1_1;
+    var h = '';
+    h += listBlock('교육목표', s.goals, 'goal', '학과 교육목표');
+    h += listBlock('인재상', s.talents, 'talent', '학과 인재상');
+    var ovCh = s.overviewMeta && U.isChanged(s.overview, s.overviewMeta.prefillSnapshot);
+    h += '<div class="field"><label>학과 교육과정 개요 ' +
+         (s.overviewMeta && s.overviewMeta.isPrefilled ? (ovCh ? '<span class="badge-changed">수정됨</span> <button type="button" class="btn-revert" onclick="Editors._revertOverview()">되돌리기</button>' : '<span class="badge-prefill">전년도</span>') : '') +
+         '</label><textarea class="' + (ovCh ? 'val-changed' : '') + '" oninput="Editors._ov(this.value)">' + U.esc(s.overview) + '</textarea></div>';
+    // 직무역량
+    h += '<div class="field"><label>④ 직무역량</label><div id="jobList"></div>' +
+         '<button class="btn sm ghost" onclick="Editors._addJob()">+ 역량 추가</button></div>';
+    host.innerHTML = h;
+    renderList('goal'); renderList('talent'); renderJobs();
+  },
+  _ov: function (v) { Edit.state.data.sec1_1.overview = v; Edit.touched(); },
+  _revertOverview: function () { var s = Edit.state.data.sec1_1; s.overview = s.overviewMeta.prefillSnapshot; Edit.show('sec1_1'); Edit.touched(); },
+  _addJob: function () { Edit.state.data.sec1_1.jobCompetencies.push({ name: '', definition: '', prefillSnapshot: '', isPrefilled: false }); renderJobs(); },
+
+  /* ── 1-2 ── */
+  sec1_2: function (host) {
+    var s = Edit.state.data.sec1_2;
+    var uv = Edit.state.data.univ;
+    var h = '<div class="field"><label>학과 특성화 한 줄</label><input type="text" value="' + U.esc(s.oneLine) + '" oninput="Editors._s12(\'oneLine\',this.value)"></div>';
+    h += '<div class="field"><label>학과 인재상(2~3개, 대학 인재상 괄호 병기)</label><div id="t12List"></div><button class="btn sm ghost" onclick="Editors._add12Talent()">+ 인재상</button></div>';
+    h += '<div class="field"><label>본표 (G행, 최소 3 · 최대 6)</label><div id="g12List"></div>' +
+         '<button class="btn sm ghost" onclick="Editors._addG()">+ 행 추가</button><div id="warn12" class="warnmsg"></div></div>';
+    h += '<div class="field"><label>마이크로디그리·융합전공(과정명, 쉼표 구분)</label>' +
+         '<input type="text" value="' + U.esc((s.micro && s.micro.programs || []).join(', ')) + '" oninput="Editors._micro(\'programs\',this.value)"></div>' +
+         '<div class="field"><label>연계 목표·역량</label><input type="text" value="' + U.esc(s.micro && s.micro.linked) + '" oninput="Editors._micro(\'linked\',this.value)"></div>';
+    host.innerHTML = h;
+    render12Talents(); renderG(uv);
+  },
+  _s12: function (k, v) { Edit.state.data.sec1_2[k] = v; Edit.touched(); },
+  _micro: function (k, v) { var m = Edit.state.data.sec1_2.micro || (Edit.state.data.sec1_2.micro = {}); m[k] = (k === 'programs') ? v.split(',').map(function (x) { return x.trim(); }).filter(Boolean) : v; Edit.touched(); },
+  _add12Talent: function () { Edit.state.data.sec1_2.talents.push(''); render12Talents(); },
+  _addG: function () { var r = Edit.state.data.sec1_2.rows; if (r.length >= 6) return U.toast('최대 6행입니다.', true); r.push({ no: 'G' + (r.length + 1), goal: '', uCodes: [], capability: '', cCodes: [], curriculum: { basic: '', advanced: '', applied: '' }, nonCurricular: '', evidence: '' }); renderG(Edit.state.data.univ); Edit.touched(); },
+
+  /* ── 1-3 ── */
+  sec1_3: function (host) {
+    host.innerHTML = '<p class="muted">셀을 클릭해 과목을 추가하세요. 개·폐설 과목은 자동 적색 표시됩니다.</p><div id="rmGrid"></div>';
+    renderRoadmap();
+  },
+
+  /* ── 2 ── */
+  sec2: function (host) {
+    var s = Edit.state.data.sec2;
+    var m = Edit.state.data.meta;
+    var h = '<label class="chk"><input type="checkbox" ' + (m.noChange2 ? 'checked' : '') + ' onchange="Editors._noChange(this.checked)"> 교육과정 변경 없음</label>';
+    [['socialDemand', '① 산업체·사회적 요구 확인 방법 및 요구사항'], ['learnerDemand', '② 학습자 수요 확인 결과'], ['reformItems', '③ 개편 사항'], ['expectedEffect', '④ 개편 기대효과']].forEach(function (f) {
+      h += '<div class="field"><label>' + f[1] + '</label><textarea oninput="Editors._s2(\'' + f[0] + '\',this.value)">' + U.esc(s[f[0]]) + '</textarea></div>';
+    });
+    h += '<div class="field"><label>근거 URL(각주 자동번호)</label><div id="refList"></div><button class="btn sm ghost" onclick="Editors._addRef()">+ 근거 추가</button></div>';
+    host.innerHTML = h; renderRefs();
+  },
+  _s2: function (k, v) { Edit.state.data.sec2[k] = v; Edit.touched(); },
+  _noChange: function (v) {
+    Edit.state.data.meta.noChange2 = v;
+    API.call('saveSection', { reportId: Edit.state.reportId, section: 'meta', payload: { noChange2: v }, baseUpdatedAt: Edit.state.baseUpdatedAt })
+      .then(function (r) { if (r && r.updatedAt) Edit.state.baseUpdatedAt = r.updatedAt; });
+    Edit.touched();
+  },
+  _noChange3: function (v) {
+    Edit.state.data.meta.noChange3 = v;
+    API.call('saveSection', { reportId: Edit.state.reportId, section: 'meta', payload: { noChange3: v }, baseUpdatedAt: Edit.state.baseUpdatedAt })
+      .then(function (r) { if (r && r.updatedAt) Edit.state.baseUpdatedAt = r.updatedAt; });
+    Edit.touched();
+  },
+  _addRef: function () { Edit.state.data.sec2.refs.push({ label: '', url: '' }); renderRefs(); },
+
+  /* ── 3-1 ── */
+  sec3_1: function (host) {
+    var m = Edit.state.data.meta;
+    host.innerHTML = '<label class="chk"><input type="checkbox" ' + (m.noChange3 ? 'checked' : '') + ' onchange="Editors._noChange3(this.checked)"> 교육과정 변경 없음(3장 전체)</label>' +
+      '<div id="t31" style="margin-top:10px"></div><button class="btn sm ghost" onclick="Editors._add31()">+ 행 추가</button>';
+    render31();
+  },
+  _add31: function () { Edit.state.data.sec3_1.push({ before: {}, after: {}, changeType: '', reason: '', sameCourse: false, certRelated: false }); render31(); Edit.touched(); },
+
+  /* ── 3-2 ── */
+  sec3_2: function (host) {
+    host.innerHTML = '<div id="t32"></div><button class="btn sm ghost" onclick="Editors._add32()">+ 행 추가</button>';
+    render32();
+  },
+  _add32: function () { Edit.state.data.sec3_2.push({ name: '', credit: '', t1: {}, t2: {} }); render32(); Edit.touched(); },
+
+  /* ── 별지1 ── */
+  sec3_3: function (host) {
+    host.innerHTML = '<p class="muted">①신설 과목 수만큼 작성합니다. 교과목 한글명은 띄어쓰기 없이 15자 이하.</p><div id="t33"></div><button class="btn sm ghost" onclick="Editors._add33()">+ 기획서 추가</button>';
+    render33();
+  },
+  _add33: function () { Edit.state.data.sec3_3.push({ courseNameKo: '', courseNameEn: '', credit: '', certRelated: 'N', grade: '', type: '전공선택', terms: [], coreCompetencies: {}, jobCompetencies: [], rationale: '', outline: {}, linkage: '', certs: '', similarExisting: 'N', similarName: '', sameCourse: 'N' }); render33(); Edit.touched(); }
+};
+
+/* ── 1-1 리스트(교육목표/인재상) ── */
+function listBlock(title, arr, kind, label) {
+  return '<div class="field"><label>' + label + ' <button class="btn sm ghost" onclick="Editors._add(\'' + kind + '\')">+ 추가</button></label><div id="' + kind + 'List"></div></div>';
+}
+Editors._add = function (kind) {
+  var arr = kind === 'goal' ? Edit.state.data.sec1_1.goals : Edit.state.data.sec1_1.talents;
+  arr.push({ value: '', prefillSnapshot: '', isPrefilled: false, changed: false });
+  renderList(kind);
+};
+function renderList(kind) {
+  var arr = kind === 'goal' ? Edit.state.data.sec1_1.goals : Edit.state.data.sec1_1.talents;
+  var host = U.el(kind + 'List'); if (!host) return;
+  host.innerHTML = arr.map(function (it, i) {
+    var ch = U.isChanged(it.value, it.prefillSnapshot);
+    var tag = it.isPrefilled ? (ch ? '<span class="badge-changed">수정됨</span> <button type="button" class="btn-revert" onclick="revertItem(\'' + kind + '\',' + i + ')">되돌리기</button>' : '<span class="badge-prefill">전년도</span>') : '';
+    return '<div class="inline"><input type="text" class="' + (ch ? 'val-changed' : '') + '" value="' + U.esc(it.value) + '" oninput="setItem(\'' + kind + '\',' + i + ',this.value)"> ' + tag +
+      ' <button class="chip"><span class="x" onclick="delItem(\'' + kind + '\',' + i + ')">✕</span></button></div>';
+  }).join('');
+}
+function setItem(kind, i, v) { var arr = kind === 'goal' ? Edit.state.data.sec1_1.goals : Edit.state.data.sec1_1.talents; arr[i].value = v; arr[i].changed = U.isChanged(v, arr[i].prefillSnapshot); renderListDebounced(kind); Edit.touched(); }
+function delItem(kind, i) { var arr = kind === 'goal' ? Edit.state.data.sec1_1.goals : Edit.state.data.sec1_1.talents; arr.splice(i, 1); renderList(kind); Edit.touched(); }
+function revertItem(kind, i) { var arr = kind === 'goal' ? Edit.state.data.sec1_1.goals : Edit.state.data.sec1_1.talents; arr[i].value = arr[i].prefillSnapshot; arr[i].changed = false; renderList(kind); Edit.touched(); }
+var _rlTimer; function renderListDebounced(kind) { /* 입력 중 커서 유지: 배지만 갱신하도록 지연 */ clearTimeout(_rlTimer); _rlTimer = setTimeout(function () { renderList(kind); }, 600); }
+
+/* ── 직무역량 ── */
+function renderJobs() {
+  var arr = Edit.state.data.sec1_1.jobCompetencies; var host = U.el('jobList'); if (!host) return;
+  host.innerHTML = arr.map(function (j, i) {
+    var ch = U.isChanged(j.definition, j.prefillSnapshot);
+    var tag = j.isPrefilled ? (ch ? '<span class="badge-changed">수정됨</span>' : '<span class="badge-prefill">전년도</span>') : '';
+    return '<div class="inline"><input type="text" placeholder="역량명칭" value="' + U.esc(j.name) + '" oninput="setJob(' + i + ',\'name\',this.value)" style="max-width:180px">' +
+      '<input type="text" class="' + (ch ? 'val-changed' : '') + '" placeholder="역량정의" value="' + U.esc(j.definition) + '" oninput="setJob(' + i + ',\'definition\',this.value)"> ' + tag +
+      ' <span class="x" onclick="delJob(' + i + ')">✕</span></div>';
+  }).join('');
+}
+function setJob(i, k, v) { Edit.state.data.sec1_1.jobCompetencies[i][k] = v; Edit.touched(); }
+function delJob(i) { Edit.state.data.sec1_1.jobCompetencies.splice(i, 1); renderJobs(); Edit.touched(); }
+
+/* ── 1-2 인재상·본표 ── */
+function render12Talents() {
+  var arr = Edit.state.data.sec1_2.talents; var host = U.el('t12List'); if (!host) return;
+  host.innerHTML = arr.map(function (t, i) {
+    return '<div class="inline"><input type="text" value="' + U.esc(t) + '" oninput="set12Talent(' + i + ',this.value)"> <span class="x" onclick="del12Talent(' + i + ')">✕</span></div>';
+  }).join('');
+}
+function set12Talent(i, v) { Edit.state.data.sec1_2.talents[i] = v; Edit.touched(); }
+function del12Talent(i) { Edit.state.data.sec1_2.talents.splice(i, 1); render12Talents(); Edit.touched(); }
+
+function renderG(uv) {
+  var rows = Edit.state.data.sec1_2.rows; var host = U.el('g12List'); if (!host) return;
+  var uCodes = (uv.goals || []).map(function (g) { return g.code; });
+  var cCodes = (uv.competencies || []).map(function (c) { return c.code; });
+  host.innerHTML = rows.map(function (r, i) {
+    return '<div class="card" style="padding:12px;margin-bottom:10px">' +
+      '<div class="row"><b>' + U.esc(r.no || ('G' + (i + 1))) + '</b> <span class="x" onclick="delG(' + i + ')" style="margin-left:auto;cursor:pointer">✕ 행삭제</span></div>' +
+      '<div class="field"><label>학과 교육목표</label><input type="text" value="' + U.esc(r.goal) + '" oninput="setG(' + i + ',\'goal\',this.value)"></div>' +
+      '<div class="field"><label>연계 대학 교육목표(U)</label>' + codeChips(uCodes, r.uCodes, 'u', i) + '</div>' +
+      '<div class="field"><label>배양 역량(텍스트)</label><input type="text" value="' + U.esc(r.capability) + '" oninput="setG(' + i + ',\'capability\',this.value)"></div>' +
+      '<div class="field"><label>연계 핵심역량(C) — 병기 필수</label>' + codeChips(cCodes, r.cCodes, 'c', i) + '</div>' +
+      '<div class="field"><label>교육과정 기초</label><input type="text" value="' + U.esc(r.curriculum.basic) + '" oninput="setCur(' + i + ',\'basic\',this.value)"></div>' +
+      '<div class="field"><label>교육과정 심화</label><input type="text" value="' + U.esc(r.curriculum.advanced) + '" oninput="setCur(' + i + ',\'advanced\',this.value)"></div>' +
+      '<div class="field"><label>교육과정 응용</label><input type="text" value="' + U.esc(r.curriculum.applied) + '" oninput="setCur(' + i + ',\'applied\',this.value)"></div>' +
+      '<div class="field"><label>비교과·현장연계(온/오프 표기)</label><input type="text" value="' + U.esc(r.nonCurricular) + '" oninput="setG(' + i + ',\'nonCurricular\',this.value)"></div>' +
+      '<div class="field"><label>성과증거·평가(학생 산출물)</label><input type="text" value="' + U.esc(r.evidence) + '" oninput="setG(' + i + ',\'evidence\',this.value)"></div>' +
+      '</div>';
+  }).join('');
+  validate12();
+}
+function codeChips(all, selected, kind, rowIdx) {
+  return '<div>' + all.map(function (code) {
+    var on = (selected || []).indexOf(code) > -1;
+    return '<span class="codechip ' + (on ? 'on' : '') + '" onclick="toggleCode(' + rowIdx + ',\'' + kind + '\',\'' + code + '\')">' + code + '</span>';
+  }).join('') + '</div>';
+}
+function toggleCode(i, kind, code) {
+  var r = Edit.state.data.sec1_2.rows[i]; var key = kind === 'u' ? 'uCodes' : 'cCodes';
+  var arr = r[key] || (r[key] = []); var p = arr.indexOf(code);
+  if (p > -1) arr.splice(p, 1); else arr.push(code);
+  renderG(Edit.state.data.univ); Edit.touched();
+}
+function setG(i, k, v) { Edit.state.data.sec1_2.rows[i][k] = v; validate12(); Edit.touched(); }
+function setCur(i, k, v) { Edit.state.data.sec1_2.rows[i].curriculum[k] = v; validate12(); Edit.touched(); }
+function delG(i) { Edit.state.data.sec1_2.rows.splice(i, 1); renderG(Edit.state.data.univ); Edit.touched(); }
+function validate12() {
+  var rows = Edit.state.data.sec1_2.rows; var w = [];
+  if (rows.length > 4) w.push('교육목표가 ' + rows.length + '개입니다(권장 3~4개).');
+  rows.forEach(function (r, i) {
+    var cur = r.curriculum || {};
+    if (!cur.basic || !cur.advanced || !cur.applied) w.push((r.no || ('G' + (i + 1))) + ': 기초·심화·응용 중 빈 칸이 있습니다(교과 없는 목표).');
+    if (!(r.cCodes || []).length) w.push((r.no || ('G' + (i + 1))) + ': 배양역량에 C코드가 없습니다.');
+    if (/만족도|수강생\s*수/.test(r.evidence || '')) w.push((r.no || ('G' + (i + 1))) + ': 성과증거에 "만족도/수강생 수"는 부적합합니다.');
+  });
+  var host = U.el('warn12'); if (host) host.innerHTML = w.map(function (x) { return '⚠ ' + U.esc(x); }).join('<br>');
+}
+
+/* ── 1-3 로드맵 그리드 ── */
+function renderRoadmap() {
+  var grades = [1, 2, 3, 4], terms = ['1학기+하계', '2학기+동계'], levels = ['기초', '심화(핵심)', '응용'];
+  var cells = Edit.state.data.sec1_3.cells;
+  function levelKey(l) { return l.indexOf('심화') === 0 ? '심화' : l; }
+  function cell(level, grade, term) {
+    var found = cells.filter(function (c) { return levelKey(c.level) === levelKey(level) && Number(c.grade) === grade && c.term === term; })[0];
+    if (!found) { found = { level: levelKey(level), grade: grade, term: term, courses: [] }; cells.push(found); }
+    return found;
+  }
+  var head = '<tr><th></th>' + grades.map(function (g) { return '<th colspan="2">' + g + '학년</th>'; }).join('') + '</tr>' +
+             '<tr><th></th>' + grades.map(function () { return '<th>1학기+하계</th><th>2학기+동계</th>'; }).join('') + '</tr>';
+  var body = levels.map(function (lv) {
+    var tds = '';
+    grades.forEach(function (g) {
+      terms.forEach(function (tm) {
+        var c = cell(lv, g, tm);
+        var chips = c.courses.map(function (co, ci) {
+          var ch = co.changed || U.isChanged(co.name, co.prefillSnapshot);
+          return '<span class="chip ' + (ch ? 'val-changed' : '') + '">' + U.esc(co.name) + (co.owner !== '주관' ? '(' + U.esc(co.owner) + ')' : '') +
+            '<span class="x" onclick="rmDelCourse(\'' + lv + '\',' + g + ',\'' + tm + '\',' + ci + ')">✕</span></span>';
+        }).join('');
+        tds += '<td class="rmcell" onclick="rmAddCourse(\'' + lv + '\',' + g + ',\'' + tm + '\')">' + chips + '</td>';
+      });
+    });
+    return '<tr><th class="lvcol">' + lv + '</th>' + tds + '</tr>';
+  }).join('');
+  U.el('rmGrid').innerHTML = '<table class="rm-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+}
+function rmAddCourse(level, grade, term) {
+  var name = prompt('과목명을 입력하세요'); if (!name) return;
+  var owner = prompt('개설구분: 주관 / 공통 / 타과활용', '주관') || '주관';
+  var cells = Edit.state.data.sec1_3.cells;
+  function levelKey(l) { return l.indexOf('심화') === 0 ? '심화' : l; }
+  var c = cells.filter(function (x) { return levelKey(x.level) === levelKey(level) && Number(x.grade) === grade && x.term === term; })[0];
+  if (!c) { c = { level: levelKey(level), grade: grade, term: term, courses: [] }; cells.push(c); }
+  c.courses.push({ name: name, owner: owner, prefillSnapshot: '', isPrefilled: false, changed: true });
+  renderRoadmap(); Edit.touched();
+}
+function rmDelCourse(level, grade, term, ci) {
+  var cells = Edit.state.data.sec1_3.cells;
+  function levelKey(l) { return l.indexOf('심화') === 0 ? '심화' : l; }
+  var c = cells.filter(function (x) { return levelKey(x.level) === levelKey(level) && Number(x.grade) === grade && x.term === term; })[0];
+  if (c) { c.courses.splice(ci, 1); renderRoadmap(); Edit.touched(); }
+}
+
+/* ── 2 근거 ── */
+function renderRefs() {
+  var arr = Edit.state.data.sec2.refs; var host = U.el('refList'); if (!host) return;
+  host.innerHTML = arr.map(function (r, i) {
+    return '<div class="inline"><input type="text" placeholder="설명" value="' + U.esc(r.label) + '" oninput="setRef(' + i + ',\'label\',this.value)" style="max-width:200px">' +
+      '<input type="text" placeholder="https://" value="' + U.esc(r.url) + '" oninput="setRef(' + i + ',\'url\',this.value)"> <span class="x" onclick="delRef(' + i + ')">✕</span></div>';
+  }).join('');
+}
+function setRef(i, k, v) { Edit.state.data.sec2.refs[i][k] = v; Edit.touched(); }
+function delRef(i) { Edit.state.data.sec2.refs.splice(i, 1); renderRefs(); Edit.touched(); }
+
+/* ── 3-1 ── */
+function render31() {
+  var arr = Edit.state.data.sec3_1; var host = U.el('t31'); if (!host) return;
+  host.innerHTML = arr.map(function (r, i) {
+    var b = r.before, a = r.after;
+    return '<div class="card" style="padding:12px;margin-bottom:10px"><div class="row"><b>연번 ' + (i + 1) + '</b><span class="x" onclick="del31(' + i + ')" style="margin-left:auto;cursor:pointer">✕</span></div>' +
+      '<div class="row"><input placeholder="기존 과목명" value="' + U.esc(b.name) + '" oninput="set31(' + i + ',\'before\',\'name\',this.value)">' +
+      '<input placeholder="기존 학점" style="width:80px" value="' + U.esc(b.credit) + '" oninput="set31(' + i + ',\'before\',\'credit\',this.value)"></div>' +
+      '<div class="row"><input placeholder="변경 과목명" value="' + U.esc(a.name) + '" oninput="set31(' + i + ',\'after\',\'name\',this.value)">' +
+      '<input placeholder="영문명" value="' + U.esc(a.nameEn) + '" oninput="set31(' + i + ',\'after\',\'nameEn\',this.value)"></div>' +
+      '<div class="row"><select onchange="set31c(' + i + ',this.value)"><option value="">변경사항</option>' +
+        ['①신설', '②폐지', '③과목명변경', '④학기변경', '⑤학년변경', '⑥학점변경', '⑦주관학과변경'].map(function (o) { return '<option ' + (r.changeType === o ? 'selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' +
+        '<label class="chk"><input type="checkbox" ' + (r.sameCourse ? 'checked' : '') + ' onchange="set31b(' + i + ',\'sameCourse\',this.checked)"> 동일교과</label>' +
+        '<label class="chk"><input type="checkbox" ' + (r.certRelated ? 'checked' : '') + ' onchange="set31b(' + i + ',\'certRelated\',this.checked)"> 자격증관련</label></div>' +
+      '<textarea placeholder="변경 사유(구체적으로)" oninput="set31(' + i + ',null,\'reason\',this.value)">' + U.esc(r.reason) + '</textarea>' +
+      (r.changeType === '①신설' ? '<div class="warnmsg">①신설 → 별지1 교과목기획서 작성이 필요합니다.</div>' : '') +
+      '</div>';
+  }).join('');
+}
+function set31(i, grp, k, v) { var r = Edit.state.data.sec3_1[i]; if (grp) r[grp][k] = v; else r[k] = v; Edit.touched(); }
+function set31c(i, v) { Edit.state.data.sec3_1[i].changeType = v; render31(); Edit.touched(); }
+function set31b(i, k, v) { Edit.state.data.sec3_1[i][k] = v; Edit.touched(); }
+function del31(i) { Edit.state.data.sec3_1.splice(i, 1); render31(); Edit.touched(); }
+
+/* ── 3-2 ── */
+function render32() {
+  var arr = Edit.state.data.sec3_2; var host = U.el('t32'); if (!host) return;
+  host.innerHTML = arr.map(function (r, i) {
+    var t1 = r.t1 || (r.t1 = {}), t2 = r.t2 || (r.t2 = {});
+    return '<div class="card" style="padding:12px;margin-bottom:10px"><div class="row"><b>연번 ' + (i + 1) + '</b><span class="x" onclick="del32(' + i + ')" style="margin-left:auto;cursor:pointer">✕</span></div>' +
+      '<div class="row"><input placeholder="과목명" value="' + U.esc(r.name) + '" oninput="set32(' + i + ',null,\'name\',this.value)"><input placeholder="학점" style="width:80px" value="' + U.esc(r.credit) + '" oninput="set32(' + i + ',null,\'credit\',this.value)"></div>' +
+      '<div class="row"><input placeholder="교원1 이름" value="' + U.esc(t1.name) + '" oninput="set32(' + i + ',\'t1\',\'name\',this.value)"><input placeholder="주차 ex 1~7주차" value="' + U.esc(t1.weeks) + '" oninput="set32(' + i + ',\'t1\',\'weeks\',this.value)"><label class="chk"><input type="checkbox" ' + (t1.isFullTime ? 'checked' : '') + ' onchange="set32b(' + i + ',\'t1\',this.checked)">전임</label></div>' +
+      '<div class="row"><input placeholder="교원2 이름" value="' + U.esc(t2.name) + '" oninput="set32(' + i + ',\'t2\',\'name\',this.value)"><input placeholder="주차" value="' + U.esc(t2.weeks) + '" oninput="set32(' + i + ',\'t2\',\'weeks\',this.value)"><label class="chk"><input type="checkbox" ' + (t2.isFullTime ? 'checked' : '') + ' onchange="set32b(' + i + ',\'t2\',this.checked)">전임</label></div></div>';
+  }).join('');
+}
+function set32(i, grp, k, v) { var r = Edit.state.data.sec3_2[i]; if (grp) r[grp][k] = v; else r[k] = v; Edit.touched(); }
+function set32b(i, grp, v) { Edit.state.data.sec3_2[i][grp].isFullTime = v; Edit.touched(); }
+function del32(i) { Edit.state.data.sec3_2.splice(i, 1); render32(); Edit.touched(); }
+
+/* ── 별지1 ── */
+function render33() {
+  var arr = Edit.state.data.sec3_3; var host = U.el('t33'); if (!host) return;
+  var uv = Edit.state.data.univ;
+  host.innerHTML = arr.map(function (r, i) {
+    var nameErr = r.courseNameKo && (/\s/.test(r.courseNameKo) || r.courseNameKo.length > 15);
+    var coreTable = (uv.competencies || []).map(function (c) {
+      var subs = (c.subs || []).map(function (sub) {
+        var on = ((r.coreCompetencies[c.name] || []).indexOf(sub) > -1);
+        return '<span class="codechip ' + (on ? 'on' : '') + '" onclick="toggleSub(' + i + ',\'' + c.name + '\',\'' + sub + '\')">' + U.esc(sub) + '</span>';
+      }).join('');
+      return '<tr><th>' + c.code + ' ' + U.esc(c.name) + '</th><td>' + subs + '</td></tr>';
+    }).join('');
+    return '<div class="card" style="padding:12px;margin-bottom:10px"><div class="row"><b>기획서 ' + (i + 1) + '</b><span class="x" onclick="del33(' + i + ')" style="margin-left:auto;cursor:pointer">✕</span></div>' +
+      '<div class="row"><input placeholder="한글명(공백X,15자↓)" class="' + (nameErr ? 'val-changed' : '') + '" value="' + U.esc(r.courseNameKo) + '" oninput="set33(' + i + ',\'courseNameKo\',this.value)"><input placeholder="영문명" value="' + U.esc(r.courseNameEn) + '" oninput="set33(' + i + ',\'courseNameEn\',this.value)"></div>' +
+      (nameErr ? '<div class="warnmsg">한글명은 띄어쓰기 없이 15자 이하여야 합니다.</div>' : '') +
+      '<div class="row"><input placeholder="학점" style="width:70px" value="' + U.esc(r.credit) + '" oninput="set33(' + i + ',\'credit\',this.value)"><input placeholder="학년" style="width:70px" value="' + U.esc(r.grade) + '" oninput="set33(' + i + ',\'grade\',this.value)">' +
+        '<select onchange="set33(' + i + ',\'type\',this.value)"><option ' + (r.type === '전공선택' ? 'selected' : '') + '>전공선택</option><option ' + (r.type === '교양선택' ? 'selected' : '') + '>교양선택</option></select>' +
+        '<select onchange="set33(' + i + ',\'certRelated\',this.value)"><option value="N" ' + (r.certRelated === 'N' ? 'selected' : '') + '>자격증 N</option><option value="Y" ' + (r.certRelated === 'Y' ? 'selected' : '') + '>자격증 Y</option></select></div>' +
+      '<div class="field"><label>개설학기</label>' + ['1학기', '하계', '2학기', '동계'].map(function (t) {
+        return '<label class="chk"><input type="checkbox" ' + ((r.terms || []).indexOf(t) > -1 ? 'checked' : '') + ' onchange="toggleTerm(' + i + ',\'' + t + '\')"> ' + t + '</label>';
+      }).join('') + '</div>' +
+      '<div class="field"><label>핵심역량(2~4개 → 하위역량 1개↑)</label><table class="rm-table">' + coreTable + '</table></div>' +
+      '<div class="field"><label>직무역량(쉼표 구분)</label><input value="' + U.esc((r.jobCompetencies || []).join(', ')) + '" oninput="set33list(' + i + ',\'jobCompetencies\',this.value)"></div>' +
+      '<div class="field"><label>개설 타당성(정량 결과 필수)</label><textarea oninput="set33(' + i + ',\'rationale\',this.value)">' + U.esc(r.rationale) + '</textarea></div>' +
+      '<div class="field"><label>과목 소개</label><textarea oninput="set33o(' + i + ',\'intro\',this.value)">' + U.esc(r.outline.intro) + '</textarea></div>' +
+      '<div class="field"><label>개설 목적</label><textarea oninput="set33o(' + i + ',\'purpose\',this.value)">' + U.esc(r.outline.purpose) + '</textarea></div>' +
+      '<div class="field"><label>교과 수준</label><input value="' + U.esc(r.outline.level) + '" oninput="set33o(' + i + ',\'level\',this.value)"></div>' +
+      '<div class="field"><label>역량 연계성</label><textarea oninput="set33(' + i + ',\'linkage\',this.value)">' + U.esc(r.linkage) + '</textarea></div>' +
+      '<div class="row"><input placeholder="관련 자격증(Y일 때)" value="' + U.esc(r.certs) + '" oninput="set33(' + i + ',\'certs\',this.value)"></div>' +
+      '<div class="row"><select onchange="set33(' + i + ',\'similarExisting\',this.value)"><option value="N" ' + (r.similarExisting === 'N' ? 'selected' : '') + '>유사과목 N</option><option value="Y" ' + (r.similarExisting === 'Y' ? 'selected' : '') + '>유사과목 Y</option></select>' +
+        '<input placeholder="유사 기존과목명" value="' + U.esc(r.similarName) + '" oninput="set33(' + i + ',\'similarName\',this.value)">' +
+        '<select onchange="set33(' + i + ',\'sameCourse\',this.value)"><option value="N" ' + (r.sameCourse === 'N' ? 'selected' : '') + '>동일교과 N</option><option value="Y" ' + (r.sameCourse === 'Y' ? 'selected' : '') + '>동일교과 Y</option></select></div>' +
+      '</div>';
+  }).join('');
+}
+function set33(i, k, v) { Edit.state.data.sec3_3[i][k] = v; if (k === 'courseNameKo') render33(); Edit.touched(); }
+function set33o(i, k, v) { Edit.state.data.sec3_3[i].outline[k] = v; Edit.touched(); }
+function set33list(i, k, v) { Edit.state.data.sec3_3[i][k] = v.split(',').map(function (x) { return x.trim(); }).filter(Boolean); Edit.touched(); }
+function toggleTerm(i, t) { var arr = Edit.state.data.sec3_3[i].terms || (Edit.state.data.sec3_3[i].terms = []); var p = arr.indexOf(t); if (p > -1) arr.splice(p, 1); else arr.push(t); Edit.touched(); }
+function toggleSub(i, name, sub) {
+  var core = Edit.state.data.sec3_3[i].coreCompetencies; var arr = core[name] || (core[name] = []);
+  var p = arr.indexOf(sub); if (p > -1) arr.splice(p, 1); else arr.push(sub);
+  if (!arr.length) delete core[name];
+  render33(); Edit.touched();
+}
+function del33(i) { Edit.state.data.sec3_3.splice(i, 1); render33(); Edit.touched(); }
+
+/* ═══════════════════ 저장용 직렬화(§6-3 payload) ═══════════════════ */
+var Serialize = {
+  sec1_1: function () {
+    var s = Edit.state.data.sec1_1;
+    return {
+      goals: s.goals.map(function (g) { return { value: g.value, prefillSnapshot: g.prefillSnapshot }; }),
+      talents: s.talents.map(function (t) { return { value: t.value, prefillSnapshot: t.prefillSnapshot }; }),
+      overview: s.overviewMeta ? { value: s.overview, prefillSnapshot: s.overviewMeta.prefillSnapshot } : { value: s.overview, prefillSnapshot: '' },
+      jobCompetencies: s.jobCompetencies.map(function (j) { return { name: j.name, definition: j.definition, prefillSnapshot: j.prefillSnapshot }; })
+    };
+  },
+  sec1_2: function () { return Edit.state.data.sec1_2; },
+  sec1_3: function () { return { cells: Edit.state.data.sec1_3.cells }; },
+  sec2:   function () { return Edit.state.data.sec2; },
+  sec3_1: function () { return { rows: Edit.state.data.sec3_1 }; },
+  sec3_2: function () { return { rows: Edit.state.data.sec3_2 }; },
+  sec3_3: function () { return { rows: Edit.state.data.sec3_3 }; }
+};
+
+document.addEventListener('DOMContentLoaded', Edit.init);
+</script>
+</body>
+</html>

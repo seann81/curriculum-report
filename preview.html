@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<!-- 파일: preview.html — 인쇄 미리보기 전용(출력과 100% 동일 마크업/CSS). Ctrl+P 로 A4 인쇄. -->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>인쇄 미리보기 — 교육과정 개편보고서</title>
+<link rel="stylesheet" href="report.css">
+<style>
+  /* 화면 전용 상단바(인쇄 시 숨김) */
+  .barp { position: sticky; top: 0; z-index: 10; background: #16243d; color: #fff; padding: 10px 16px; display: flex; gap: 10px; align-items: center; font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
+  .barp a, .barp button { background: #2b6777; color: #fff; border: none; border-radius: 6px; padding: 7px 13px; font-size: 13px; cursor: pointer; text-decoration: none; }
+  .barp .sp { flex: 1; }
+  @media print { .barp { display: none; } }
+</style>
+</head>
+<body>
+<div class="barp">
+  <b>인쇄 미리보기</b>
+  <span id="pTitle"></span>
+  <span class="sp"></span>
+  <button onclick="window.print()">🖨 인쇄(Ctrl+P)</button>
+  <button onclick="Preview.download()">HTML 다운로드</button>
+  <a href="index.html">목록</a>
+</div>
+
+<div class="report" id="report"></div>
+
+<script src="api.js"></script>
+<script src="app.js"></script>
+<script src="render.js"></script>
+<script>
+var Preview = (function () {
+  var data = null;
+  function init() {
+    var reportId = U.param('report');
+    Auth.init(function () {
+      API.call('exportPayload', { reportId: reportId }).then(function (d) {
+        data = d;
+        document.getElementById('pTitle').textContent = d.meta.year + '학년도 ' + d.meta.deptName;
+        document.getElementById('report').innerHTML = Render.buildReport(d);
+      }).catch(function (e) { U.toast(e.message || '불러오기 실패', true); });
+    });
+  }
+  function download() { if (data) Render.download(data); }
+  return { init: init, download: download };
+})();
+document.addEventListener('DOMContentLoaded', Preview.init);
+</script>
+</body>
+</html>
