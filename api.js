@@ -271,6 +271,8 @@ var Mock = (function () {
       case 'getReport':
       case 'exportPayload': return buildDetail(p.reportId || (p.year + '_' + p.deptCode));
       case 'saveSection': return { updatedAt: new Date().toISOString() };
+      // 연습모드: 실제 드라이브 저장은 실가동(로그인) 상태에서만 동작. 여기선 '모의 저장' 링크를 돌려준다.
+      case 'uploadRef': return { url: '', name: (p.fileName || '파일'), id: '', mock: true };
       case 'submitReport': return { submitted: true, warnings: [] };
       case 'prefillFromPrevYear': return { filled: ['1-1', '1-3'], skipped: [], note: '' };
       case 'openYear': return { created: [p.payload && p.payload.year + '_SW'], skipped: 0 };
