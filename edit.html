@@ -237,10 +237,41 @@ var Editors = {
     [['socialDemand', '① 산업체·사회적 요구 확인 방법 및 요구사항'], ['learnerDemand', '② 학습자 수요 확인 결과'], ['reformItems', '③ 개편 사항'], ['expectedEffect', '④ 개편 기대효과']].forEach(function (f) {
       h += '<div class="field"><label>' + f[1] + '</label><textarea oninput="Editors._s2(\'' + f[0] + '\',this.value)">' + U.esc(s[f[0]]) + '</textarea></div>';
     });
-    h += '<div class="field"><label>근거 URL(각주 자동번호)</label><div id="refList"></div><button class="btn sm ghost" onclick="Editors._addRef()">+ 근거 추가</button></div>';
+    h += '<div class="field"><label>근거문서(각주 자동번호)</label><div id="refList"></div>' +
+      '<div class="row" style="margin-top:6px">' +
+        '<button class="btn sm ghost" onclick="Editors._addRef()">+ URL 링크 추가</button>' +
+        '<label class="btn sm ghost" style="margin:0;cursor:pointer">+ 파일 업로드<input type="file" style="display:none" onchange="Editors._uploadRef(this)"></label>' +
+        '<span id="refUpMsg" class="muted" style="font-size:12px"></span>' +
+      '</div>' +
+      '<div class="muted" style="font-size:11.5px;margin-top:4px">업로드한 파일은 구글 드라이브의 「연도/학과」 폴더에 자동 저장되고, 위 목록에 링크로 추가됩니다.</div></div>';
     host.innerHTML = h; renderRefs();
   },
   _s2: function (k, v) { Edit.state.data.sec2[k] = v; Edit.touched(); },
+  _uploadRef: function (input) {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var msg = U.el('refUpMsg');
+    if (file.size > 25 * 1024 * 1024) { U.toast('파일이 너무 큽니다(25MB 이하만 가능).', true); input.value = ''; return; }
+    if (msg) msg.textContent = '업로드 중… ' + file.name;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var b64 = String(reader.result).split(',')[1] || '';   // "data:...;base64,XXXX" 에서 XXXX 만
+      API.call('uploadRef', { reportId: Edit.state.reportId, fileName: file.name, mimeType: file.type || 'application/octet-stream', dataBase64: b64 })
+        .then(function (r) {
+          input.value = '';
+          if (r && r.mock) { if (msg) msg.textContent = '(연습모드) 실제 저장은 실가동 시 됩니다 — ' + (r.name || file.name); return; }
+          Edit.state.data.sec2.refs.push({ label: r.name || file.name, url: r.url || '' });
+          renderRefs(); Edit.touched();
+          if (msg) msg.textContent = '저장 중… ' + (r.name || file.name);
+          // 업로드 직후 2섹션(sec2)을 서버에 바로 저장 → 링크가 시트에 반영(미저장 이탈 시 고아 파일 방지)
+          API.call('saveSection', { reportId: Edit.state.reportId, section: 'sec2', payload: Edit.state.data.sec2, baseUpdatedAt: Edit.state.baseUpdatedAt })
+            .then(function (sr) { if (sr && sr.updatedAt) Edit.state.baseUpdatedAt = sr.updatedAt; if (msg) msg.textContent = '업로드·저장 완료 — ' + (r.name || file.name); })
+            .catch(function (se) { if (msg) msg.textContent = '업로드됨(저장 실패 — 2섹션에서 [저장]을 눌러주세요): ' + (r.name || file.name); U.toast((se && se.message) || '저장 실패', true); });
+        })
+        .catch(function (e) { input.value = ''; if (msg) msg.textContent = ''; U.toast((e && e.message) || '업로드 실패', true); });
+    };
+    reader.readAsDataURL(file);
+  },
   _noChange: function (v) {
     Edit.state.data.meta.noChange2 = v;
     API.call('saveSection', { reportId: Edit.state.reportId, section: 'meta', payload: { noChange2: v }, baseUpdatedAt: Edit.state.baseUpdatedAt })
