@@ -91,3 +91,11 @@ main { max-width:1080px; margin:18px auto; padding:0 16px; }
 #t31 .row > input[style*="80px"] { flex:0 0 80px; }                             /* '기존 학점'은 의도된 소형칸 유지 */
 #t31 textarea { width:100%; min-height:80px; resize:vertical; }                 /* '변경 사유'도 전폭 */
 #t31 .chk { flex:0 0 auto; }                                                    /* 체크박스는 커지지 않게 */
+
+/* 별지1(교과목 기획서) 입력칸: 3-1처럼 넓고 균형있게. 카드(#t33)에만 적용. */
+#t33 .row { margin-bottom:8px; }
+#t33 input:not([type=checkbox]), #t33 select { padding:8px 10px; border:1px solid #d6deea; border-radius:7px; font-size:13.5px; font-family:inherit; }
+#t33 .row > input, #t33 .row > select { flex:1 1 0; min-width:0; }              /* 나란한 입력·드롭다운이 행을 균등 분할해 넓게 */
+#t33 .row > input[style*="70px"] { flex:0 0 90px; }                            /* '학점'은 소형 유지(학년은 드롭다운으로 전환됨) */
+#t33 .field > input { width:100%; }                                            /* .field 단독 input(직무역량·교과수준)도 전폭(type 미지정 대응) */
+#t33 .chk { flex:0 0 auto; }                                                    /* 체크박스는 커지지 않게 */
