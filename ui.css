@@ -83,3 +83,11 @@ main { max-width:1080px; margin:18px auto; padding:0 16px; }
 .rm-table { width:100%; border-collapse:collapse; font-size:12px; }
 .rm-table th, .rm-table td { border:1px solid #dde4ee; padding:4px; vertical-align:top; }
 .rm-table th { background:#eef2f7; }
+
+/* 3-1 변경내역 입력칸: 2 개편방향처럼 넓게(행 폭을 꽉 채움). 카드(#t31)에만 적용. */
+#t31 .row { margin-bottom:8px; }
+#t31 input:not([type=checkbox]), #t31 select, #t31 textarea { padding:8px 10px; border:1px solid #d6deea; border-radius:7px; font-size:13.5px; font-family:inherit; }
+#t31 .row > input, #t31 .row > select { flex:1 1 0; min-width:0; }              /* 나란한 입력칸이 행을 균등 분할해 넓게 */
+#t31 .row > input[style*="80px"] { flex:0 0 80px; }                             /* '기존 학점'은 의도된 소형칸 유지 */
+#t31 textarea { width:100%; min-height:80px; resize:vertical; }                 /* '변경 사유'도 전폭 */
+#t31 .chk { flex:0 0 auto; }                                                    /* 체크박스는 커지지 않게 */
