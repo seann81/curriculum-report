@@ -48,7 +48,11 @@ var IndexPage = (function () {
       U.el('who').textContent = me.name + ' (' + me.email + ' · ' + roleLabel(me.role) + ')';
       U.el('app').style.display = 'block';
       U.el('loginBox').style.display = 'none';
-      if (me.role === 'admin') U.el('adminPanel').style.display = 'block';
+      if (me.role === 'admin') {
+        U.el('adminPanel').style.display = 'block';
+        U.el('bulkBar').style.display = 'flex';
+        U.el('chkHead').style.display = '';
+      }
       loadReports();
     }).catch(function (e) {
       // ACCESS 미등록 등
@@ -61,18 +65,23 @@ var IndexPage = (function () {
 
   function loadReports() {
     API.call('listReports', {}).then(function (d) {
+      var isAdmin = me.role === 'admin';
       var rows = d.reports.map(function (r) {
         return '<tr>' +
+          (isAdmin ? '<td><input type="checkbox" class="rchk" value="' + U.esc(r.reportId) +
+                     '" data-status="' + U.esc(r.status) + '"></td>' : '') +
           '<td>' + r.year + '</td>' +
           '<td>' + U.esc(r.deptName) + '</td>' +
           '<td>' + U.statusBadge(r.status) + '</td>' +
           '<td>' + U.esc((r.updatedAt || '').replace('T', ' ').slice(0, 16)) + '</td>' +
           '<td>' + U.esc((r.submittedAt || '').replace('T', ' ').slice(0, 16)) + '</td>' +
           '<td><a class="btn sm" href="edit.html?report=' + encodeURIComponent(r.reportId) + '">열기</a>' +
-          (me.role === 'admin' ? adminRowBtns(r) : '') +
+          (isAdmin ? adminRowBtns(r) : '') +
           '</td></tr>';
       }).join('');
-      U.el('reportBody').innerHTML = rows || '<tr><td colspan="6" class="muted">보고서가 없습니다. 관리자가 연도를 개시하세요.</td></tr>';
+      var span = isAdmin ? 7 : 6;
+      U.el('reportBody').innerHTML = rows || '<tr><td colspan="' + span + '" class="muted">보고서가 없습니다. 관리자가 연도를 개시하세요.</td></tr>';
+      if (isAdmin && U.el('chkAll')) U.el('chkAll').checked = false; // 목록 갱신 시 전체선택 해제
     });
   }
 
@@ -109,6 +118,66 @@ var IndexPage = (function () {
     API.call('closeReport', { reportId: reportId }).then(function () { U.toast('마감(잠금) 완료'); loadReports(); }).catch(err);
   }
 
+  /* ─────────── 일괄 처리 (개별 버튼·함수는 그대로 두고 추가) ─────────── */
+  function toggleAll(cb) {
+    U.qsa('#reportBody input.rchk').forEach(function (c) { c.checked = cb.checked; });
+  }
+  function getChecked() {
+    return U.qsa('#reportBody input.rchk:checked').map(function (c) {
+      return { reportId: c.value, status: c.getAttribute('data-status') };
+    });
+  }
+  // 순차 실행: 체크된 항목을 하나씩 처리(부분 실패해도 계속), 끝나면 목록 1회 새로고침
+  var bulkRunning = false; // 중복 클릭에 의한 동시 실행(레이스) 차단
+  function setBulkDisabled(on) {
+    U.qsa('#bulkBar button').forEach(function (b) { b.disabled = on; });
+  }
+  function runBulk(label, items, fn) {
+    if (bulkRunning) { U.toast('이미 일괄 작업이 진행 중입니다', true); return; }
+    bulkRunning = true; setBulkDisabled(true);
+    var total = items.length, done = 0, failed = [];
+    U.toast(label + ' 시작: ' + total + '건');
+    var chain = Promise.resolve();
+    items.forEach(function (it) {
+      chain = chain.then(function () {
+        return fn(it).then(function () { done++; })
+          .catch(function (e) { failed.push(it.reportId + '(' + ((e && e.message) || '오류') + ')'); });
+      });
+    });
+    chain.then(function () {
+      bulkRunning = false; setBulkDisabled(false);
+      U.toast(label + ' 완료: 성공 ' + done + '/' + total + (failed.length ? ' · 실패 ' + failed.length + '건: ' + failed.join(', ') : ''), failed.length > 0);
+      loadReports();
+    });
+  }
+  // 선택 항목을 상태조건으로 걸러 확인창 후 일괄 실행하는 공통 틀
+  function bulkAction(label, okStatus, actionVerb, fn) {
+    var sel = getChecked();
+    if (!sel.length) return U.toast('학과를 선택하세요', true);
+    var eligible = sel.filter(function (x) { return x.status === okStatus; });
+    var skipped = sel.length - eligible.length;
+    if (!eligible.length) return U.toast(actionVerb + ' 가능한(' + okStatus + ') 선택 항목이 없습니다', true);
+    var msg = '선택 ' + sel.length + '건 중 ' + okStatus + ' ' + eligible.length + '건을 일괄 ' + actionVerb + '합니다.' +
+      (skipped ? ' (' + skipped + '건은 상태 불일치로 제외)' : '') + '\n진행할까요?';
+    if (!confirm(msg)) return;
+    runBulk('일괄 ' + actionVerb, eligible, fn);
+  }
+  function bulkPrefill() {
+    bulkAction('일괄 프리필', '준비중', '프리필', function (it) {
+      return API.call('prefillFromPrevYear', { reportId: it.reportId });
+    });
+  }
+  function bulkSend() {
+    bulkAction('일괄 발송', '준비중', '발송', function (it) {
+      return API.call('saveSection', { reportId: it.reportId, section: 'meta', payload: { status: '작성중' } });
+    });
+  }
+  function bulkClose() {
+    bulkAction('일괄 마감', '제출완료', '마감', function (it) {
+      return API.call('closeReport', { reportId: it.reportId });
+    });
+  }
+
   /* 계정관리 화면 열기 */
   function openAccounts() {
     API.call('listUsers', {}).then(function (d) {
@@ -142,6 +211,7 @@ var IndexPage = (function () {
   function err(e) { U.toast((e && e.message) || '오류', true); }
 
   return { init: init, openYear: openYear, prefill: prefill, send: send, close: close,
+           toggleAll: toggleAll, bulkPrefill: bulkPrefill, bulkSend: bulkSend, bulkClose: bulkClose,
            openAccounts: openAccounts, saveUser: saveUser };
 })();
 
