@@ -71,6 +71,10 @@ var Render = (function () {
   /* ── 1-2 특성화 교육체계표 (가로 · 표준양식 클래스 그대로) ── */
   function sec1_2(rep, dept) {
     var s = rep.sec1_2 || {}, uv = rep.univ || {};
+    // HEAD(한 줄 특성화·마이크로디그리) 프리필 대비 변경 여부 → 적색표시
+    var hs = (s.headMeta && s.headMeta.snapshot) || null;
+    function nrm(x) { return String(x == null ? '' : x).replace(/[ \t]+/g, ' ').replace(/^\s+|\s+$/g, ''); }
+    function hc(cur, key) { return hs ? (nrm(cur) !== nrm(hs[key] || '')) : false; }
     var uChips = (uv.goals || []).map(function (g) {
       return '<div class="chip"><b>' + g.code + '</b>' + e(g.text) + '</div>';
     }).join('');
@@ -83,7 +87,7 @@ var Render = (function () {
       var cur = '<span class="lv"><b>기초</b> ' + e(r.curriculum && r.curriculum.basic) + '</span>' +
                 '<span class="lv"><b>심화</b> ' + e(r.curriculum && r.curriculum.advanced) + '</span>' +
                 '<span class="lv"><b>응용</b> ' + e(r.curriculum && r.curriculum.applied) + '</span>';
-      return '<tr><td class="no">' + e(r.no) + '</td><td>' + e(r.goal) + '</td><td>' + u +
+      return '<tr' + rc(r.changed) + '><td class="no">' + e(r.no) + '</td><td>' + e(r.goal) + '</td><td>' + u +
         '</td><td><span class="cap-main">' + e(r.capability) + '</span>' + c + '</td><td>' + cur +
         '</td><td>' + e(r.nonCurricular) + '</td><td>' + e(r.evidence) + '</td></tr>';
     }).join('');
@@ -99,15 +103,15 @@ var Render = (function () {
         '<div class="brow"><div class="blabel">인재상 · 핵심역량</div><div class="bval" style="font-size:8.8pt">' + (uv.talents || []).join(' · ') + ' │ ' + cCodes + '</div></div>' +
       '</div></div>' +
       '<div class="secbar">학과 작성 영역 | 학과 교육목표 → 배양역량 → 교과·비교과 → 성과증거</div>' +
-      '<div class="idline"><div class="idlabel">학과 특성화 한 줄</div><div class="idval">' + e(s.oneLine) + '</div></div>' +
-      '<div class="idline"><div class="idlabel">학과 인재상</div><div class="idval">' + (s.talents || []).map(e).join(' &nbsp; ') + '</div></div>' +
+      '<div class="idline"><div class="idlabel">학과 특성화 한 줄</div><div class="idval' + (hc(s.oneLine, 'oneLine') ? ' changed' : '') + '">' + e(s.oneLine) + '</div></div>' +
+      '<div class="idline"><div class="idlabel">학과 인재상</div><div class="idval">' + ((rep.sec1_1 && rep.sec1_1.talents || []).map(function (t) { return e((t && typeof t === 'object') ? t.value : t); }).join(' &nbsp; ')) + '</div></div>' +
       '<table class="main"><tr>' +
         '<th style="width:11mm">번호</th><th class="w-goal">학과 교육목표</th><th class="w-u">연계 대학<br>교육목표</th>' +
         '<th class="w-cap">배양 역량</th><th class="w-cur">교육과정<br>(기초→심화→응용)</th><th class="w-nc">비교과·현장연계</th><th class="w-ev">성과증거·평가</th>' +
       '</tr>' + rows + '</table>' +
       '<div class="micro"><div class="micro-l">마이크로디그리<br>· 융합전공</div>' +
-        '<div class="micro-m">' + (s.micro && (s.micro.programs || []).map(e).join(' │ ') || '') + '</div>' +
-        '<div class="micro-r">연계 목표·역량<br><b>' + e(s.micro && s.micro.linked) + '</b></div></div>' +
+        '<div class="micro-m' + (hc((s.micro && s.micro.programs || []).join(' | '), 'microPrograms') ? ' changed' : '') + '">' + (s.micro && (s.micro.programs || []).map(e).join(' │ ') || '') + '</div>' +
+        '<div class="micro-r' + (hc((s.micro && s.micro.linked) || '', 'microLinked') ? ' changed' : '') + '">연계 목표·역량<br><b>' + e(s.micro && s.micro.linked) + '</b></div></div>' +
       '<div class="cqi">운영·환류(CQI) : 역량 사전·사후 진단 → 교과–역량 매핑 점검 → 성과증거 확인 → 외부전문가 의견 → 다음 연도 개편</div>' +
       '</section>';
   }
