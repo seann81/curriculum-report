@@ -38,8 +38,18 @@
   <!-- 제출현황 대시보드 -->
   <section class="card">
     <h3>보고서 목록 · 제출현황</h3>
+    <!-- 관리자 전용 일괄 작업 툴바 (개별 행 버튼은 그대로 유지) -->
+    <div id="bulkBar" class="row" style="display:none">
+      <button class="btn sm" onclick="IndexPage.bulkPrefill()">일괄 프리필</button>
+      <button class="btn sm" onclick="IndexPage.bulkSend()">일괄 발송</button>
+      <button class="btn sm" onclick="IndexPage.bulkClose()">일괄 마감</button>
+      <span class="muted">체크한 학과 중 <b>상태가 맞는 항목만</b> 처리됩니다(프리필·발송=준비중 / 마감=제출완료).</span>
+    </div>
     <table class="grid">
-      <thead><tr><th>연도</th><th>학과</th><th>상태</th><th>최종수정</th><th>제출일</th><th>작업</th></tr></thead>
+      <thead><tr>
+        <th id="chkHead" style="display:none"><input type="checkbox" id="chkAll" onclick="IndexPage.toggleAll(this)"></th>
+        <th>연도</th><th>학과</th><th>상태</th><th>최종수정</th><th>제출일</th><th>작업</th>
+      </tr></thead>
       <tbody id="reportBody"></tbody>
     </table>
   </section>
