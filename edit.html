@@ -208,19 +208,29 @@ var Editors = {
   sec1_2: function (host) {
     var s = Edit.state.data.sec1_2;
     var uv = Edit.state.data.univ;
-    var h = '<div class="field"><label>학과 특성화 한 줄</label><input type="text" value="' + U.esc(s.oneLine) + '" oninput="Editors._s12(\'oneLine\',this.value)"></div>';
-    h += '<div class="field"><label>학과 인재상(2~3개, 대학 인재상 괄호 병기)</label><div id="t12List"></div><button class="btn sm ghost" onclick="Editors._add12Talent()">+ 인재상</button></div>';
+    var hs = (s.headMeta && s.headMeta.snapshot) || null;   // 프리필 스냅샷(없으면 null=프리필 아님)
+    // HEAD 필드(한 줄 특성화·마이크로디그리)도 1-1/1-3처럼 전년도/수정됨 배지·적색·되돌리기 표시
+    function headTag(field, cur, key) {
+      if (!hs) return '';
+      return (_ncmp(cur) !== _ncmp(hs[key] || ''))
+        ? '<span class="badge-changed">수정됨</span> <button type="button" class="btn-revert" onclick="revertHead12(\'' + field + '\')">되돌리기</button>'
+        : '<span class="badge-prefill">전년도</span>';
+    }
+    function headVc(cur, key) { return (hs && _ncmp(cur) !== _ncmp(hs[key] || '')) ? ' class="val-changed"' : ''; }
+    var progStr = (s.micro && s.micro.programs || []).join(' | ');
+    var linkedStr = (s.micro && s.micro.linked) || '';
+    var h = '<div class="field"><label>학과 특성화 한 줄 ' + headTag('oneLine', s.oneLine, 'oneLine') + '</label><input type="text"' + headVc(s.oneLine, 'oneLine') + ' value="' + U.esc(s.oneLine) + '" oninput="Editors._s12(\'oneLine\',this.value)"></div>';
+    h += '<div class="field"><label>학과 인재상</label><div class="muted" style="font-size:11.5px;margin:-2px 0 4px">1-1 교육목표·인재상에 입력한 인재상이 자동 반영됩니다(여기서는 수정할 수 없습니다). 대학 인재상 병기가 필요하면 1-1에서 괄호로 적으면 그대로 반영됩니다.</div><div id="t12List"></div></div>';
     h += '<div class="field"><label>본표 (G행, 최소 3 · 최대 6)</label><div id="g12List"></div>' +
          '<button class="btn sm ghost" onclick="Editors._addG()">+ 행 추가</button><div id="warn12" class="warnmsg"></div></div>';
-    h += '<div class="field"><label>마이크로디그리·융합전공(과정명, 쉼표 구분)</label>' +
-         '<input type="text" value="' + U.esc((s.micro && s.micro.programs || []).join(', ')) + '" oninput="Editors._micro(\'programs\',this.value)"></div>' +
-         '<div class="field"><label>연계 목표·역량</label><input type="text" value="' + U.esc(s.micro && s.micro.linked) + '" oninput="Editors._micro(\'linked\',this.value)"></div>';
+    h += '<div class="field"><label>마이크로디그리·융합전공(과정명, 쉼표 구분) ' + headTag('microPrograms', progStr, 'microPrograms') + '</label>' +
+         '<input type="text"' + headVc(progStr, 'microPrograms') + ' value="' + U.esc((s.micro && s.micro.programs || []).join(', ')) + '" oninput="Editors._micro(\'programs\',this.value)"></div>' +
+         '<div class="field"><label>연계 목표·역량 ' + headTag('microLinked', linkedStr, 'microLinked') + '</label><input type="text"' + headVc(linkedStr, 'microLinked') + ' value="' + U.esc(linkedStr) + '" oninput="Editors._micro(\'linked\',this.value)"></div>';
     host.innerHTML = h;
     render12Talents(); renderG(uv);
   },
   _s12: function (k, v) { Edit.state.data.sec1_2[k] = v; Edit.touched(); },
   _micro: function (k, v) { var m = Edit.state.data.sec1_2.micro || (Edit.state.data.sec1_2.micro = {}); m[k] = (k === 'programs') ? v.split(',').map(function (x) { return x.trim(); }).filter(Boolean) : v; Edit.touched(); },
-  _add12Talent: function () { Edit.state.data.sec1_2.talents.push(''); render12Talents(); },
   _addG: function () { var r = Edit.state.data.sec1_2.rows; if (r.length >= 6) return U.toast('최대 6행입니다.', true); r.push({ no: 'G' + (r.length + 1), goal: '', uCodes: [], capability: '', cCodes: [], curriculum: { basic: '', advanced: '', applied: '' }, nonCurricular: '', evidence: '' }); renderG(Edit.state.data.univ); Edit.touched(); },
 
   /* ── 1-3 ── */
@@ -348,36 +358,71 @@ function renderJobs() {
 function setJob(i, k, v) { Edit.state.data.sec1_1.jobCompetencies[i][k] = v; Edit.touched(); }
 function delJob(i) { Edit.state.data.sec1_1.jobCompetencies.splice(i, 1); renderJobs(); Edit.touched(); }
 
-/* ── 1-2 인재상·본표 ── */
+/* ── 1-2 인재상(읽기전용, 1-1 자동반영)·본표 ── */
+/* 인재상은 1-1을 단일 원본으로 사용한다. 여기서는 1-1 값을 읽기전용으로 보여주기만 한다. */
 function render12Talents() {
-  var arr = Edit.state.data.sec1_2.talents; var host = U.el('t12List'); if (!host) return;
-  host.innerHTML = arr.map(function (t, i) {
-    return '<div class="inline"><input type="text" value="' + U.esc(t) + '" oninput="set12Talent(' + i + ',this.value)"> <span class="x" onclick="del12Talent(' + i + ')">✕</span></div>';
+  var arr = (Edit.state.data.sec1_1 && Edit.state.data.sec1_1.talents) || [];
+  var host = U.el('t12List'); if (!host) return;
+  if (!arr.length) { host.innerHTML = '<span class="muted" style="font-size:12px">1-1에 인재상을 입력하면 여기에 표시됩니다.</span>'; return; }
+  host.innerHTML = arr.map(function (t) {
+    var v = (t && typeof t === 'object') ? t.value : t;
+    return '<div class="inline"><input type="text" value="' + U.esc(v) + '" readonly disabled></div>';
   }).join('');
 }
-function set12Talent(i, v) { Edit.state.data.sec1_2.talents[i] = v; Edit.touched(); }
-function del12Talent(i) { Edit.state.data.sec1_2.talents.splice(i, 1); render12Talents(); Edit.touched(); }
 
 function renderG(uv) {
   var rows = Edit.state.data.sec1_2.rows; var host = U.el('g12List'); if (!host) return;
   var uCodes = (uv.goals || []).map(function (g) { return g.code; });
   var cCodes = (uv.competencies || []).map(function (c) { return c.code; });
   host.innerHTML = rows.map(function (r, i) {
+    var ch = rowChanged12_(r);
+    var vc = ch ? ' class="val-changed"' : '';
+    var tag = r.prefillSnapshot ? (ch ? '<span class="badge-changed">수정됨</span> <button type="button" class="btn-revert" onclick="revertG(' + i + ')">되돌리기</button>' : '<span class="badge-prefill">전년도</span>') : '';
     return '<div class="card" style="padding:12px;margin-bottom:10px">' +
-      '<div class="row"><b>' + U.esc(r.no || ('G' + (i + 1))) + '</b> <span class="x" onclick="delG(' + i + ')" style="margin-left:auto;cursor:pointer">✕ 행삭제</span></div>' +
-      '<div class="field"><label>학과 교육목표</label><input type="text" value="' + U.esc(r.goal) + '" oninput="setG(' + i + ',\'goal\',this.value)"></div>' +
+      '<div class="row"><b>' + U.esc(r.no || ('G' + (i + 1))) + '</b> ' + tag + ' <span class="x" onclick="delG(' + i + ')" style="margin-left:auto;cursor:pointer">✕ 행삭제</span></div>' +
+      '<div class="field"><label>학과 교육목표</label><input type="text"' + vc + ' value="' + U.esc(r.goal) + '" oninput="setG(' + i + ',\'goal\',this.value)"></div>' +
       '<div class="field"><label>연계 대학 교육목표(U)</label>' + codeChips(uCodes, r.uCodes, 'u', i) + '</div>' +
-      '<div class="field"><label>배양 역량(텍스트)</label><input type="text" value="' + U.esc(r.capability) + '" oninput="setG(' + i + ',\'capability\',this.value)"></div>' +
+      '<div class="field"><label>배양 역량(텍스트)</label><input type="text"' + vc + ' value="' + U.esc(r.capability) + '" oninput="setG(' + i + ',\'capability\',this.value)"></div>' +
       '<div class="field"><label>연계 핵심역량(C) — 병기 필수</label>' + codeChips(cCodes, r.cCodes, 'c', i) + '</div>' +
-      '<div class="field"><label>교육과정 기초</label><input type="text" value="' + U.esc(r.curriculum.basic) + '" oninput="setCur(' + i + ',\'basic\',this.value)"></div>' +
-      '<div class="field"><label>교육과정 심화</label><input type="text" value="' + U.esc(r.curriculum.advanced) + '" oninput="setCur(' + i + ',\'advanced\',this.value)"></div>' +
-      '<div class="field"><label>교육과정 응용</label><input type="text" value="' + U.esc(r.curriculum.applied) + '" oninput="setCur(' + i + ',\'applied\',this.value)"></div>' +
-      '<div class="field"><label>비교과·현장연계(온/오프 표기)</label><input type="text" value="' + U.esc(r.nonCurricular) + '" oninput="setG(' + i + ',\'nonCurricular\',this.value)"></div>' +
-      '<div class="field"><label>성과증거·평가(학생 산출물)</label><input type="text" value="' + U.esc(r.evidence) + '" oninput="setG(' + i + ',\'evidence\',this.value)"></div>' +
+      '<div class="field"><label>교육과정 기초</label><input type="text"' + vc + ' value="' + U.esc(r.curriculum.basic) + '" oninput="setCur(' + i + ',\'basic\',this.value)"></div>' +
+      '<div class="field"><label>교육과정 심화</label><input type="text"' + vc + ' value="' + U.esc(r.curriculum.advanced) + '" oninput="setCur(' + i + ',\'advanced\',this.value)"></div>' +
+      '<div class="field"><label>교육과정 응용</label><input type="text"' + vc + ' value="' + U.esc(r.curriculum.applied) + '" oninput="setCur(' + i + ',\'applied\',this.value)"></div>' +
+      '<div class="field"><label>비교과·현장연계(온/오프 표기)</label><input type="text"' + vc + ' value="' + U.esc(r.nonCurricular) + '" oninput="setG(' + i + ',\'nonCurricular\',this.value)"></div>' +
+      '<div class="field"><label>성과증거·평가(학생 산출물)</label><input type="text"' + vc + ' value="' + U.esc(r.evidence) + '" oninput="setG(' + i + ',\'evidence\',this.value)"></div>' +
       '</div>';
   }).join('');
   validate12();
 }
+/* 공백/탭 정규화 비교 헬퍼(백엔드 normalizeCmp_ 와 동일 규칙). */
+function _ncmp(x) { return String(x == null ? '' : x).replace(/[ \t]+/g, ' ').replace(/^\s+|\s+$/g, ''); }
+/* 1-2 G행이 프리필 스냅샷과 달라졌는지(어느 필드든). 백엔드 rowDiffers12_ 와 동일 규칙. */
+function rowChanged12_(r) {
+  var s = r.prefillSnapshot; if (!s) return false;
+  var t = _ncmp;
+  function a(x) { return (x || []).slice().sort().join(','); }
+  var cur = r.curriculum || {};
+  return t(r.goal) !== t(s.goal) || a(r.uCodes) !== a(s.uCodes) ||
+    t(r.capability) !== t(s.capability) || a(r.cCodes) !== a(s.cCodes) ||
+    t(cur.basic) !== t(s.basic) || t(cur.advanced) !== t(s.advanced) || t(cur.applied) !== t(s.applied) ||
+    t(r.nonCurricular) !== t(s.nonCurricular) || t(r.evidence) !== t(s.evidence);
+}
+/* HEAD 필드(한 줄 특성화·마이크로디그리)를 프리필 스냅샷 값으로 되돌림. */
+function revertHead12(field) {
+  var s = Edit.state.data.sec1_2; var hs = s.headMeta && s.headMeta.snapshot; if (!hs) return;
+  if (field === 'oneLine') { s.oneLine = hs.oneLine || ''; }
+  else if (field === 'microPrograms') { s.micro = s.micro || {}; s.micro.programs = (hs.microPrograms || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean); }
+  else if (field === 'microLinked') { s.micro = s.micro || {}; s.micro.linked = hs.microLinked || ''; }
+  Edit.show('sec1_2'); Edit.touched();
+}
+/* 행 전체를 프리필 스냅샷으로 되돌림. */
+function revertG(i) {
+  var r = Edit.state.data.sec1_2.rows[i]; var s = r.prefillSnapshot; if (!s) return;
+  r.goal = s.goal; r.uCodes = (s.uCodes || []).slice(); r.capability = s.capability; r.cCodes = (s.cCodes || []).slice();
+  r.curriculum = { basic: s.basic, advanced: s.advanced, applied: s.applied };
+  r.nonCurricular = s.nonCurricular; r.evidence = s.evidence;
+  renderG(Edit.state.data.univ); Edit.touched();
+}
+var _rgTimer; function renderGDebounced() { clearTimeout(_rgTimer); _rgTimer = setTimeout(function () { renderG(Edit.state.data.univ); }, 600); }
 function codeChips(all, selected, kind, rowIdx) {
   return '<div>' + all.map(function (code) {
     var on = (selected || []).indexOf(code) > -1;
@@ -390,8 +435,8 @@ function toggleCode(i, kind, code) {
   if (p > -1) arr.splice(p, 1); else arr.push(code);
   renderG(Edit.state.data.univ); Edit.touched();
 }
-function setG(i, k, v) { Edit.state.data.sec1_2.rows[i][k] = v; validate12(); Edit.touched(); }
-function setCur(i, k, v) { Edit.state.data.sec1_2.rows[i].curriculum[k] = v; validate12(); Edit.touched(); }
+function setG(i, k, v) { Edit.state.data.sec1_2.rows[i][k] = v; validate12(); renderGDebounced(); Edit.touched(); }
+function setCur(i, k, v) { Edit.state.data.sec1_2.rows[i].curriculum[k] = v; validate12(); renderGDebounced(); Edit.touched(); }
 function delG(i) { Edit.state.data.sec1_2.rows.splice(i, 1); renderG(Edit.state.data.univ); Edit.touched(); }
 function validate12() {
   var rows = Edit.state.data.sec1_2.rows; var w = [];
@@ -577,7 +622,15 @@ var Serialize = {
       jobCompetencies: s.jobCompetencies.map(function (j) { return { name: j.name, definition: j.definition, prefillSnapshot: j.prefillSnapshot }; })
     };
   },
-  sec1_2: function () { return Edit.state.data.sec1_2; },
+  sec1_2: function () {
+    // 인재상은 1-1을 단일 원본으로 사용 — 저장 시 1-1 값으로 동기화(SEC1_2 시트 capability 열도 1-1과 일치 유지)
+    var src = Edit.state.data.sec1_2;
+    var t11 = (Edit.state.data.sec1_1 && Edit.state.data.sec1_1.talents) || [];
+    var s12 = {};                                   // 라이브 상태 변이 방지: 얕은 복사 후 talents만 교체
+    for (var k in src) { if (src.hasOwnProperty(k)) s12[k] = src[k]; }
+    s12.talents = t11.map(function (t) { return (t && typeof t === 'object') ? t.value : t; });
+    return s12;
+  },
   sec1_3: function () { return { cells: Edit.state.data.sec1_3.cells }; },
   sec2:   function () { return Edit.state.data.sec2; },
   sec3_1: function () { return { rows: Edit.state.data.sec3_1 }; },
