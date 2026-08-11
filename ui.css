@@ -110,3 +110,12 @@ main { max-width:1080px; margin:18px auto; padding:0 16px; }
 #t33 .row > input[style*="70px"] { flex:0 0 90px; }                            /* '학점'은 소형 유지(학년은 드롭다운으로 전환됨) */
 #t33 .field > input { width:100%; }                                            /* .field 단독 input(직무역량·교과수준)도 전폭(type 미지정 대응) */
 #t33 .chk { flex:0 0 auto; }                                                    /* 체크박스는 커지지 않게 */
+
+/* 아코디언(접기/펼치기) — 관리자 도구 패널·학과 선택 목록. 네이티브 <details> 기반. */
+.acc { border-top:1px solid #eef1f5; }
+.acc > summary.acc-h { cursor:pointer; font-weight:800; font-size:15px; list-style:none; padding:6px 0; user-select:none; color:#1f2937; }
+.acc > summary.acc-h::-webkit-details-marker { display:none; }
+.acc > summary.acc-h::before { content:'\25B8'; color:#8a97a8; margin-right:7px; display:inline-block; transition:transform .15s; }
+.acc[open] > summary.acc-h::before { content:'\25BE'; }
+.acc > summary.acc-h.sm { font-size:13px; font-weight:700; color:#3d5a80; }
+#adminPanel .acc { border-top:none; }
