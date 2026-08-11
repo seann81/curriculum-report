@@ -251,7 +251,7 @@ var Mock = (function () {
       meta: { year: year, deptCode: code, deptName: name, status: '작성중', updatedAt: '2026-08-05T16:19:09+09:00', updatedBy: 'freevision21@iscu.ac.kr', noChange2: false, noChange3: false },
       univ: UNIV,
       sec1_1: { goals: goals, talents: talents, overview: overviewParts.join('\n\n'), overviewMeta: { isPrefilled: overviewParts.length > 0, changed: false, prefillSnapshot: overviewParts.join('\n\n') }, jobCompetencies: jobs },
-      sec1_2: { oneLine: '', talents: [], rows: [], micro: { programs: [], linked: '' } },
+      sec1_2: { oneLine: '', tracks: [], cert: { microPrograms: [], microLinked: '', evidence: '' } },
       sec1_3: { cells: cells },
       sec2: { socialDemand: '', learnerDemand: '', reformItems: '', expectedEffect: '', refs: [] },
       sec3_1: [], sec3_2: [], sec3_3: []
