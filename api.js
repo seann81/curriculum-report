@@ -194,6 +194,22 @@ var Mock = (function () {
     ["AI스마트팜","AI스마트팜학과"], ["통합건강","통합건강관리학과"], ["요가명상","요가명상학과"],
     ["응용통계","응용수학·통계학과"], ["스포츠지도","스포츠지도학과"], ["반려동물","반려동물산업학과"]
   ];
+  // 연습모드 계정관리 데모: 관리자 me + 교수자 샘플. 학과 배정(setUserDepts)은 세션 내 유지.
+  var MOCK_MEMBER = { 'prof.ai@iscu.ac.kr': ['인공지능'], 'prof.multi@iscu.ac.kr': ['컴퓨터', '인공지능'] };
+  var MOCK_ACCT_USERS = [
+    { email: 'prof.ai@iscu.ac.kr', name: 'AI 교수', role: 'professor', deptCode: '', submitYn: 'Y', useYn: 'Y' },
+    { email: 'prof.multi@iscu.ac.kr', name: '다학과 교수', role: 'professor', deptCode: '', submitYn: 'Y', useYn: 'Y' }
+  ];
+  function mockAcct() {
+    var depts = MOCK_DEPTS.map(function (d) { return { deptCode: d[0], deptName: d[1] }; });
+    var users = [{ email: me.email, name: me.name, role: me.role, deptCode: me.deptCode, submitYn: me.submitYn, useYn: 'Y', deptCodes: ['*'] }];
+    MOCK_ACCT_USERS.forEach(function (u) {
+      var copy = {}; for (var k in u) copy[k] = u[k];
+      copy.deptCodes = (MOCK_MEMBER[u.email] || []).slice();
+      users.push(copy);
+    });
+    return { users: users, depts: depts };
+  }
   var reports = MOCK_DEPTS.map(function (d) {
     return { reportId: '2027_' + d[0], year: 2027, deptCode: d[0], deptName: d[1],
              status: '작성중', updatedAt: '2026-08-05T16:19:09+09:00', submittedAt: '' };
@@ -267,7 +283,8 @@ var Mock = (function () {
     switch (action) {
       case 'me': return { me: me, univ: UNIV };
       case 'listReports': return { reports: reports };
-      case 'listUsers': return { users: [me], depts: [{ deptCode: 'SW', deptName: '사회복지전공' }, { deptCode: 'PSY', deptName: '상담심리학과' }] };
+      case 'listUsers': return mockAcct();
+      case 'setUserDepts': MOCK_MEMBER[String((p.payload || {}).email || '').toLowerCase()] = ((p.payload || {}).deptCodes || []).slice(); return mockAcct();
       case 'getReport':
       case 'exportPayload': return buildDetail(p.reportId || (p.year + '_' + p.deptCode));
       case 'saveSection': return { updatedAt: new Date().toISOString() };
@@ -277,7 +294,7 @@ var Mock = (function () {
       case 'prefillFromPrevYear': return { filled: ['1-1', '1-3'], skipped: [], note: '' };
       case 'openYear': return { created: [p.payload && p.payload.year + '_SW'], skipped: 0 };
       case 'closeReport': return { status: '잠금' };
-      case 'upsertUser': return { users: [me], depts: [] };
+      case 'upsertUser': return mockAcct();
       default: return {};
     }
   }
