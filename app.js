@@ -98,7 +98,7 @@ var IndexPage = (function () {
   /* 관리자 액션 */
   function openYear() {
     var year = Number(U.el('openYear').value);
-    var codes = U.qsa('#deptChecks input:checked').map(function (c) { return c.value; });
+    var codes = U.qsa('#deptChecks input.deptChk:checked').map(function (c) { return c.value; });
     if (!year || !codes.length) return U.toast('연도와 학과를 선택하세요', true);
     API.call('openYear', { payload: { year: year, deptCodes: codes } }).then(function (d) {
       U.toast((d.created || []).length + '개 보고서 생성'); loadReports();
@@ -238,9 +238,16 @@ var IndexPage = (function () {
   }
   function renderDeptChecks(depts) {
     var host = U.el('deptChecks'); if (!host) return;
-    host.innerHTML = (depts || []).map(function (d) {
-      return '<label class="chk"><input type="checkbox" value="' + U.esc(d.deptCode) + '"> ' + U.esc(d.deptName) + '</label>';
+    var n = (depts || []).length;
+    var master = '<label class="chk" style="font-weight:700;background:#eef2f7"><input type="checkbox" id="deptChkAll" onclick="IndexPage.toggleAllDepts(this)"> 전체 선택 (' + n + ')</label>';
+    host.innerHTML = master + (depts || []).map(function (d) {
+      return '<label class="chk"><input type="checkbox" class="deptChk" value="' + U.esc(d.deptCode) + '"> ' + U.esc(d.deptName) + '</label>';
     }).join('');
+  }
+  /* 학과 체크박스 일괄 선택/해제(마스터 체크박스). openYear는 .deptChk 만 읽으므로 마스터는 값에 안 섞임. */
+  function toggleAllDepts(master) {
+    var host = U.el('deptChecks'); if (!host) return;
+    [].slice.call(host.querySelectorAll('input.deptChk')).forEach(function (cb) { cb.checked = master.checked; });
   }
   function saveUser() {
     var role = U.el('u_role').value;
@@ -260,7 +267,7 @@ var IndexPage = (function () {
 
   return { init: init, openYear: openYear, prefill: prefill, send: send, close: close,
            toggleAll: toggleAll, bulkPrefill: bulkPrefill, bulkSend: bulkSend, bulkClose: bulkClose,
-           openAccounts: openAccounts, saveUser: saveUser, assignDepts: assignDepts };
+           openAccounts: openAccounts, saveUser: saveUser, assignDepts: assignDepts, toggleAllDepts: toggleAllDepts };
 })();
 
 document.addEventListener('DOMContentLoaded', function () {
