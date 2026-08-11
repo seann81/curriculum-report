@@ -83,6 +83,10 @@ main { max-width:1080px; margin:18px auto; padding:0 16px; }
 .rm-table { width:100%; border-collapse:collapse; font-size:12px; }
 .rm-table th, .rm-table td { border:1px solid #dde4ee; padding:4px; vertical-align:top; }
 .rm-table th { background:#eef2f7; }
+/* 1-3 로드맵 표: 학년별 1학기+하계 / 2학기+동계 8개 칸을 같은 폭으로 균등 배치. (로드맵 표에만 적용 — 별지1 핵심역량표 등 다른 rm-table 불변) */
+#rmGrid .rm-table { table-layout:fixed; }
+#rmGrid .rm-table thead tr:first-child th:first-child { width:68px; }           /* 맨 왼쪽 수준(기초·심화·응용) 라벨열만 고정폭 → 나머지 8칸이 남은 폭을 균등 분할 */
+#rmGrid .rm-table .lvcol { white-space:nowrap; }                                /* '심화(핵심)' 라벨이 두 줄로 접히지 않게 */
 
 /* 3-1 변경내역 입력칸: 2 개편방향처럼 넓게(행 폭을 꽉 채움). 카드(#t31)에만 적용. */
 #t31 .row { margin-bottom:8px; }
@@ -91,6 +95,13 @@ main { max-width:1080px; margin:18px auto; padding:0 16px; }
 #t31 .row > input[style*="80px"] { flex:0 0 80px; }                             /* '기존 학점'은 의도된 소형칸 유지 */
 #t31 textarea { width:100%; min-height:80px; resize:vertical; }                 /* '변경 사유'도 전폭 */
 #t31 .chk { flex:0 0 auto; }                                                    /* 체크박스는 커지지 않게 */
+
+/* 3-2 팀티칭 입력칸: 3-1처럼 넓고 균형있게(옆 공백 없이 행을 꽉 채움). 카드(#t32)에만 적용. */
+#t32 .row { margin-bottom:8px; }
+#t32 input:not([type=checkbox]), #t32 select { padding:8px 10px; border:1px solid #d6deea; border-radius:7px; font-size:13.5px; font-family:inherit; }
+#t32 .row > input, #t32 .row > select { flex:1 1 0; min-width:0; }              /* 나란한 입력칸이 행을 균등 분할해 넓게 */
+#t32 .row > input[style*="80px"] { flex:0 0 80px; }                             /* '학점'은 의도된 소형칸 유지 */
+#t32 .chk { flex:0 0 auto; }                                                    /* '전임' 체크박스는 커지지 않게 */
 
 /* 별지1(교과목 기획서) 입력칸: 3-1처럼 넓고 균형있게. 카드(#t33)에만 적용. */
 #t33 .row { margin-bottom:8px; }
