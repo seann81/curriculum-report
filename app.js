@@ -179,16 +179,60 @@ var IndexPage = (function () {
   }
 
   /* 계정관리 화면 열기 */
+  var _acctData = null;                                  // 마지막 listUsers 결과 캐시(학과 배정 UI용)
   function openAccounts() {
     API.call('listUsers', {}).then(function (d) {
+      _acctData = d;
       renderDeptChecks(d.depts);
       var rows = d.users.map(function (u) {
+        var codes = (u.deptCodes && u.deptCodes.length) ? u.deptCodes.join(', ') : (u.deptCode || '');
+        var isAdmin = String(u.role).toLowerCase() === 'admin';
+        var btn = isAdmin ? '<span class="muted" style="font-size:12px">전 학과</span>'
+                          : '<button class="btn sm ghost" onclick="IndexPage.assignDepts(\'' + U.esc(u.email) + '\')">학과 배정</button>';
         return '<tr><td>' + U.esc(u.email) + '</td><td>' + U.esc(u.name) + '</td><td>' + U.esc(u.role) +
-          '</td><td>' + U.esc(u.deptCode) + '</td><td>' + U.esc(u.submitYn) + '</td><td>' + U.esc(u.useYn) + '</td></tr>';
+          '</td><td>' + U.esc(codes) + '</td><td>' + U.esc(u.submitYn) + '</td><td>' + U.esc(u.useYn) + '</td><td>' + btn + '</td></tr>';
       }).join('');
       U.el('userBody').innerHTML = rows;
       U.el('accountModal').style.display = 'flex';
     });
+  }
+  /* 사용자별 학과 배정(체크박스 다중선택 → setUserDepts). 저장 즉시 반영(양방향). */
+  function assignDepts(email) {
+    var d = _acctData; if (!d) return;
+    var em = String(email).toLowerCase();
+    var user = (d.users || []).filter(function (u) { return String(u.email).toLowerCase() === em; })[0];
+    var current = (user && user.deptCodes) || [];
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:99999';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;color:#1c2430;max-width:680px;width:92%;max-height:82vh;overflow:auto;border-radius:12px;padding:18px 20px;box-shadow:0 6px 30px rgba(0,0,0,.3)';
+    var head = document.createElement('div');
+    head.innerHTML = '<b style="font-size:16px">학과 배정</b> — ' + U.esc(email) +
+      '<div class="muted" style="font-size:12px;margin-top:3px">담당 학과를 체크한 뒤 저장하세요. 저장하면 즉시 반영되고, 구글시트(ACCESS_DEPT)에도 그대로 기록됩니다.</div>';
+    box.appendChild(head);
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;margin:14px 0';
+    (d.depts || []).forEach(function (dep) {
+      var lb = document.createElement('label'); lb.className = 'chk';
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = dep.deptCode;
+      if (current.indexOf(dep.deptCode) > -1) cb.checked = true;
+      lb.appendChild(cb); lb.appendChild(document.createTextNode(' ' + dep.deptName + ' (' + dep.deptCode + ')'));
+      grid.appendChild(lb);
+    });
+    box.appendChild(grid);
+    var bar = document.createElement('div'); bar.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+    var cancel = document.createElement('button'); cancel.className = 'btn ghost'; cancel.textContent = '취소';
+    cancel.addEventListener('click', function () { document.body.removeChild(ov); });
+    var save = document.createElement('button'); save.className = 'btn'; save.textContent = '저장';
+    save.addEventListener('click', function () {
+      var codes = [].slice.call(grid.querySelectorAll('input:checked')).map(function (c) { return c.value; });
+      save.disabled = true;
+      API.call('setUserDepts', { payload: { email: em, deptCodes: codes } }).then(function () {
+        U.toast('학과 배정 저장됨'); document.body.removeChild(ov); openAccounts();
+      }).catch(function (e) { save.disabled = false; err(e); });
+    });
+    bar.appendChild(cancel); bar.appendChild(save); box.appendChild(bar);
+    ov.appendChild(box); document.body.appendChild(ov);
   }
   function renderDeptChecks(depts) {
     var host = U.el('deptChecks'); if (!host) return;
@@ -212,7 +256,7 @@ var IndexPage = (function () {
 
   return { init: init, openYear: openYear, prefill: prefill, send: send, close: close,
            toggleAll: toggleAll, bulkPrefill: bulkPrefill, bulkSend: bulkSend, bulkClose: bulkClose,
-           openAccounts: openAccounts, saveUser: saveUser };
+           openAccounts: openAccounts, saveUser: saveUser, assignDepts: assignDepts };
 })();
 
 document.addEventListener('DOMContentLoaded', function () {
