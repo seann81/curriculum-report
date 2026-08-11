@@ -81,46 +81,65 @@ var Render = (function () {
     var cCodes = (uv.competencies || []).map(function (c) {
       return '<span class="ccode">' + c.code + ' ' + e(c.name) + '</span>';
     }).join('');
-    var rows = (s.rows || []).map(function (r) {
+    // 학과 교육목표(G)·직무역량(J) — 1-1 단일원본 파생(코드 자동), 읽기전용
+    var s11 = rep.sec1_1 || {};
+    var gGoals = (s11.goals || []).map(function (g, i) { return { code: 'G' + (i + 1), text: (g && typeof g === 'object') ? g.value : g }; });
+    var jComps = (s11.jobCompetencies || []).map(function (j, i) { return { code: 'J' + (i + 1), name: (j && typeof j === 'object') ? (j.name || j.value || '') : j }; });
+    var gChipsDept = gGoals.map(function (g) { return '<div class="gchip"><b>' + g.code + '</b>' + e(g.text) + '</div>'; }).join('');
+    var jItems = jComps.map(function (j) { return '<span class="jitem"><b>' + j.code + '</b>' + e(j.name) + '</span>'; }).join('');
+    var talents11 = (s11.talents || []).map(function (t) { return e((t && typeof t === 'object') ? t.value : t); }).join(' &nbsp; ');
+
+    // 특성화 트랙 본표 (트랙 기준)
+    var trackRows = (s.tracks || []).map(function (r) {
       var u = (r.uCodes || []).map(function (x) { return '<span class="ucode">' + e(x) + '</span>'; }).join('');
+      var g = (r.gCodes || []).map(function (x) { return '<span class="gcode">' + e(x) + '</span>'; }).join('');
       var c = (r.cCodes || []).map(function (x) { return '<span class="ccode">' + e(x) + '</span>'; }).join('');
+      var j = (r.jCodes || []).map(function (x) { return '<span class="jcode">' + e(x) + '</span>'; }).join('');
       var cur = '<span class="lv"><b>기초</b> ' + e(r.curriculum && r.curriculum.basic) + '</span>' +
                 '<span class="lv"><b>심화</b> ' + e(r.curriculum && r.curriculum.advanced) + '</span>' +
                 '<span class="lv"><b>응용</b> ' + e(r.curriculum && r.curriculum.applied) + '</span>';
-      return '<tr' + rc(r.changed) + '><td class="no">' + e(r.no) + '</td><td>' + e(r.goal) + '</td><td>' + u +
-        '</td><td><span class="cap-main">' + e(r.capability) + '</span>' + c + '</td><td>' + cur +
-        '</td><td>' + e(r.nonCurricular) + '</td><td>' + e(r.evidence) + '</td></tr>';
+      return '<tr' + rc(r.changed) + '><td class="trk">' + e(r.no) + (r.trackName ? '<small>' + e(r.trackName) + '</small>' : '') + '</td><td>' + u +
+        '</td><td>' + g + '</td><td>' + c + j + '</td><td>' + cur + '</td><td>' + e(r.nonCurricular) + '</td></tr>';
     }).join('');
+    var cert = s.cert || {};
+    var micProg = cert.microPrograms || [];
 
     return '<section class="sheet sheet-land">' +
       '<h1 class="title">' + dept + ' 특성화 교육체계표</h1>' +
       '<div class="rule"></div>' +
-      '<div class="band"><div class="band-left">대학 공통<br><span style="font-size:8.2pt;font-weight:500">(고정)</span></div>' +
+      '<div class="band"><div class="band-left">대학 공통</div>' +
       '<div class="band-rows">' +
         '<div class="brow"><div class="blabel">교육이념</div><div class="bval">' + e(uv.ideology) + '</div></div>' +
         '<div class="brow"><div class="blabel">교육목적</div><div class="bval">' + e(uv.purpose) + '</div></div>' +
         '<div class="brow"><div class="blabel">대학 교육목표</div><div class="bval" style="padding:4px"><div class="chips" style="width:100%">' + uChips + '</div></div></div>' +
         '<div class="brow"><div class="blabel">인재상 · 핵심역량</div><div class="bval" style="font-size:8.8pt">' + (uv.talents || []).join(' · ') + ' │ ' + cCodes + '</div></div>' +
       '</div></div>' +
-      '<div class="secbar">학과 작성 영역 | 학과 교육목표 → 배양역량 → 교과·비교과 → 성과증거</div>' +
+      '<div class="secbar">학과 교육목표, 인재상 및 특성화 체계</div>' +
+      '<div class="deptline"><div class="dlabel-g">학과 교육목표<br>(G)</div><div class="dval"><div class="gchips">' + (gChipsDept || '<span class="hint">1-1 학과 교육목표에서 자동반영</span>') + '</div></div></div>' +
+      '<div class="idline"><div class="idlabel">학과 인재상</div><div class="idval">' + talents11 + '</div></div>' +
+      '<div class="deptline"><div class="dlabel-j">학과 직무역량<br>(J)</div><div class="dval"><div class="jrow">' + (jItems || '<span class="hint">1-1 직무역량 명칭에서 자동반영</span>') + '</div></div></div>' +
       '<div class="idline"><div class="idlabel">학과 특성화 한 줄</div><div class="idval' + (hc(s.oneLine, 'oneLine') ? ' changed' : '') + '">' + e(s.oneLine) + '</div></div>' +
-      '<div class="idline"><div class="idlabel">학과 인재상</div><div class="idval">' + ((rep.sec1_1 && rep.sec1_1.talents || []).map(function (t) { return e((t && typeof t === 'object') ? t.value : t); }).join(' &nbsp; ')) + '</div></div>' +
       '<table class="main"><tr>' +
-        '<th style="width:11mm">번호</th><th class="w-goal">학과 교육목표</th><th class="w-u">연계 대학<br>교육목표</th>' +
-        '<th class="w-cap">배양 역량</th><th class="w-cur">교육과정<br>(기초→심화→응용)</th><th class="w-nc">비교과·현장연계</th><th class="w-ev">성과증거·평가</th>' +
-      '</tr>' + rows + '</table>' +
-      '<div class="micro"><div class="micro-l">마이크로디그리<br>· 융합전공</div>' +
-        '<div class="micro-m' + (hc((s.micro && s.micro.programs || []).join(' | '), 'microPrograms') ? ' changed' : '') + '">' + (s.micro && (s.micro.programs || []).map(e).join(' │ ') || '') + '</div>' +
-        '<div class="micro-r' + (hc((s.micro && s.micro.linked) || '', 'microLinked') ? ' changed' : '') + '">연계 목표·역량<br><b>' + e(s.micro && s.micro.linked) + '</b></div></div>' +
-      '<div class="cqi">운영·환류(CQI) : 역량 사전·사후 진단 → 교과–역량 매핑 점검 → 성과증거 확인 → 외부전문가 의견 → 다음 연도 개편</div>' +
+        '<th style="width:26mm">특성화 트랙</th><th class="w-u">연계 대학<br>교육목표</th><th class="w-g">연계 학과<br>교육목표</th>' +
+        '<th class="w-cap">배양 역량<br>(C·J)</th><th class="w-cur">교육과정<br>선이수(기초→심화→응용)</th><th class="w-nc">비교과·현장연계</th>' +
+      '</tr>' + trackRows + '</table>' +
+      '<div class="prereq-note">※ 「교육과정」의 기초·심화·응용은 난이도가 아니라 <b>선이수(先履修) 순서 체계</b>입니다 — 1-3 로드맵의 수준(Lv1·Lv2·Lv3)과는 다른 축입니다.</div>' +
+      '<div class="cert"><div class="cert-title">성과증거 및 학습성과 인증</div><div class="cert-body">' +
+        '<div class="cert-col"><div class="cert-h micro"><span class="dot"></span>마이크로디그리 · 융합전공</div>' +
+          '<div' + (hc(micProg.join(' | '), 'microPrograms') ? ' class="changed"' : '') + '>' + micProg.map(e).join(' │ ') + '</div>' +
+          '<span class="sub">' + e(cert.microLinked || '') + '</span></div>' +
+        '<div class="cert-col"><div class="cert-h evid"><span class="dot"></span>성과증거</div>' +
+          '<div' + (hc(cert.evidence || '', 'evidence') ? ' class="changed"' : '') + '>' + e(cert.evidence || '') + '</div></div>' +
+      '</div></div>' +
       '</section>';
   }
 
   /* ── 1-3 로드맵 (세로) ── */
   function sec1_3(rep, y, dept) {
     var cells = (rep.sec1_3 && rep.sec1_3.cells) || [];
-    var grades = [1, 2, 3, 4], terms = ['1학기+하계', '2학기+동계'], levels = ['기초', '심화(핵심)', '응용'];
-    function levelKey(l) { return l.indexOf('심화') === 0 ? '심화' : l; }
+    var grades = [1, 2, 3, 4], terms = ['1학기+하계', '2학기+동계'], levels = ['Lv1', 'Lv2', 'Lv3'];
+    // 1-3 수준 타이틀 Lv1/Lv2/Lv3. 데이터는 구/신 값 모두 인식(기초|Lv1, 심화(핵심)|Lv2, 응용|Lv3).
+    function levelKey(l) { var s = String(l || ''); if (s.indexOf('기초') === 0 || s.toLowerCase() === 'lv1') return 'Lv1'; if (s.indexOf('심화') === 0 || s.toLowerCase() === 'lv2') return 'Lv2'; if (s.indexOf('응용') === 0 || s.toLowerCase() === 'lv3') return 'Lv3'; return s; }
     function find(level, grade, term) {
       return cells.filter(function (c) { return levelKey(c.level) === levelKey(level) && Number(c.grade) === grade && c.term === term; });
     }
