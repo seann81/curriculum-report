@@ -52,6 +52,8 @@ var IndexPage = (function () {
         U.el('adminPanel').style.display = 'block';
         U.el('bulkBar').style.display = 'flex';
         U.el('chkHead').style.display = '';
+        // 연도개시용 학과 체크박스 선로딩([계정 관리]를 열지 않아도 바로 사용). _acctData 캐시도 채움.
+        API.call('listUsers', {}).then(function (u) { _acctData = u; renderDeptChecks(u.depts); }).catch(function () {});
       }
       loadReports();
     }).catch(function (e) {
@@ -241,14 +243,16 @@ var IndexPage = (function () {
     }).join('');
   }
   function saveUser() {
+    var role = U.el('u_role').value;
     var p = {
       email: U.el('u_email').value.trim().toLowerCase(),
       name: U.el('u_name').value.trim(),
-      role: U.el('u_role').value,
-      deptCode: U.el('u_dept').value.trim(),
+      role: role,
       submitYn: U.el('u_submit').value,
       useYn: U.el('u_use').value
     };
+    // 학과는 [학과 배정]으로 지정. 관리자만 전 학과(*) 자동. 그 외는 deptCode 미전송 → 기존값 보존(신규는 백엔드에서 '' 기본).
+    if (role === 'admin') p.deptCode = '*';
     API.call('upsertUser', { payload: p }).then(function () { U.toast('저장됨'); openAccounts(); }).catch(err);
   }
 
