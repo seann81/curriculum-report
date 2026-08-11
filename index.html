@@ -24,15 +24,20 @@
 <!-- 본문 -->
 <main id="app" style="display:none">
 
-  <!-- 관리자 패널 -->
+  <!-- 관리자 패널 (아코디언: 기본 접힘) -->
   <section id="adminPanel" class="card" style="display:none">
-    <h3>관리자 도구</h3>
-    <div class="row">
-      <label>연도 개시 <input id="openYear" type="number" placeholder="2027" style="width:90px"></label>
-      <div id="deptChecks" class="chks"></div>
-      <button class="btn" onclick="IndexPage.openYear()">보고서 생성</button>
-      <button class="btn ghost" onclick="IndexPage.openAccounts()">계정 관리</button>
-    </div>
+    <details class="acc">
+      <summary class="acc-h">관리자 도구</summary>
+      <div class="row" style="margin-top:10px">
+        <label>연도 개시 <input id="openYear" type="number" placeholder="2027" style="width:90px"></label>
+        <details class="acc" style="flex-basis:100%">
+          <summary class="acc-h sm">학과 선택 (연도 개시 대상) — 펼쳐서 체크</summary>
+          <div id="deptChecks" class="chks" style="margin-top:6px"></div>
+        </details>
+        <button class="btn" onclick="IndexPage.openYear()">보고서 생성</button>
+        <button class="btn ghost" onclick="IndexPage.openAccounts()">계정 관리</button>
+      </div>
+    </details>
   </section>
 
   <!-- 제출현황 대시보드 -->
@@ -59,12 +64,11 @@
 <div id="accountModal" class="modal" style="display:none">
   <div class="modal-box">
     <h3>담당자 계정 관리 (ACCESS)</h3>
-    <p class="muted">시트를 직접 편집해도 즉시 반영됩니다. 삭제 대신 사용여부(useYn)=N 으로 관리하세요.</p>
+    <p class="muted">시트를 직접 편집해도 즉시 반영됩니다. 삭제 대신 사용여부(useYn)=N 으로 관리하세요. <b>학과는 등록 후 아래 표의 [학과 배정] 버튼으로 지정</b>합니다(관리자는 자동 전 학과).</p>
     <div class="form-grid">
       <input id="u_email" placeholder="이메일 @iscu.ac.kr">
       <input id="u_name" placeholder="이름">
       <select id="u_role"><option value="professor">교수자</option><option value="assistant">조교</option><option value="admin">관리자</option></select>
-      <input id="u_dept" placeholder="학과코드(SW / *)">
       <select id="u_submit"><option value="Y">제출가능</option><option value="N">제출불가</option></select>
       <select id="u_use"><option value="Y">사용</option><option value="N">미사용</option></select>
       <button class="btn" onclick="IndexPage.saveUser()">등록/수정</button>
