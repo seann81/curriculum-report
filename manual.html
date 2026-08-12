@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<!-- 파일: manual.html — 교수자(학과장) 입력 매뉴얼 · 인포그래픽 · 새 탭 열림 · 연습/라이브 공통 -->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>입력 매뉴얼 — 교육과정 개편보고서 작성 시스템</title>
+<style>
+  :root{
+    --navy:#16243d; --teal:#2b6777; --teal-d:#22525f;
+    --bg:#f4f6f9; --card:#fff; --line:#e2e8f1;
+    --ink:#1a1a1a; --muted:#7c8698; --red:#c0392b;
+    --amber:#b3730f; --amberbg:#fff8e6; --green:#1d7a4e; --greenbg:#e7f6ec;
+    --blue:#3d5a80; --bluebg:#eef2fa;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Noto Sans KR','Malgun Gothic',sans-serif;color:var(--ink);
+       background:var(--bg);line-height:1.7;font-size:16px;}
+  a{color:var(--teal);}
+  .wrap{max-width:920px;margin:0 auto;padding:0 18px 80px;}
+
+  /* ===== 상단 ===== */
+  header.top{background:var(--navy);color:#fff;padding:34px 18px 30px;text-align:center;}
+  header.top .eyebrow{font-size:14px;letter-spacing:2px;opacity:.75;margin-bottom:8px;}
+  header.top h1{margin:0;font-size:30px;font-weight:800;}
+  header.top p{margin:12px auto 0;max-width:620px;font-size:15.5px;opacity:.92;}
+  .close-hint{display:inline-block;margin-top:18px;font-size:13px;background:rgba(255,255,255,.13);
+       border:1px solid rgba(255,255,255,.25);border-radius:20px;padding:6px 15px;}
+
+  /* ===== 목차 (스티키) ===== */
+  nav.toc{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--line);
+       box-shadow:0 2px 8px rgba(22,36,61,.05);}
+  nav.toc .inner{max-width:920px;margin:0 auto;display:flex;gap:6px;flex-wrap:wrap;
+       padding:10px 18px;justify-content:center;}
+  nav.toc a{text-decoration:none;color:var(--navy);font-size:13.5px;font-weight:700;
+       padding:6px 12px;border-radius:20px;background:var(--bg);border:1px solid var(--line);}
+  nav.toc a:hover{background:var(--teal);color:#fff;border-color:var(--teal);}
+
+  /* ===== 공통 섹션 ===== */
+  section{margin-top:40px;scroll-margin-top:64px;}
+  .sec-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+  .sec-head .n{flex:none;width:38px;height:38px;border-radius:50%;background:var(--teal);color:#fff;
+       display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;}
+  .sec-head h2{margin:0;font-size:22px;font-weight:800;color:var(--navy);}
+  .sec-head .sub{color:var(--muted);font-size:14px;margin-top:2px;}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;
+       margin-bottom:16px;}
+  .lead{font-size:16.5px;}
+
+  /* ===== 큰 흐름 (6단계 세로 타임라인) ===== */
+  .flow{counter-reset:step;}
+  .flow .step{display:flex;gap:16px;align-items:flex-start;position:relative;padding-bottom:22px;}
+  .flow .step:not(:last-child)::before{content:"";position:absolute;left:23px;top:48px;bottom:0;
+       width:3px;background:linear-gradient(var(--teal),#cfe0e5);border-radius:3px;}
+  .flow .bubble{flex:none;width:48px;height:48px;border-radius:50%;background:#fff;
+       border:3px solid var(--teal);color:var(--teal);display:flex;align-items:center;justify-content:center;
+       font-size:22px;font-weight:800;z-index:1;}
+  .flow .body{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;flex:1;}
+  .flow .body h3{margin:0 0 4px;font-size:17px;color:var(--navy);}
+  .flow .body p{margin:0;color:#444;font-size:14.5px;}
+  .flow .tagbtn{display:inline-block;background:var(--teal);color:#fff;font-size:12.5px;font-weight:700;
+       border-radius:6px;padding:2px 9px;margin:0 2px;}
+
+  /* ===== 화면 지도 (모형) ===== */
+  .mock{border:2px solid var(--navy);border-radius:12px;overflow:hidden;background:#fff;}
+  .mock .bar{background:var(--navy);color:#fff;font-size:13px;padding:8px 12px;display:flex;
+       justify-content:space-between;align-items:center;}
+  .mock .bar .btns span{background:#2b6777;border-radius:5px;padding:3px 8px;margin-left:5px;font-size:11.5px;}
+  .mock .split{display:flex;min-height:190px;}
+  .mock .left{flex:1;padding:12px;border-right:2px dashed #cdd6e3;background:#fbfcfe;}
+  .mock .right{flex:1;padding:12px;background:#eef1f5;}
+  .mock .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;}
+  .mock .tabs .t{font-size:11px;background:#eef2f7;border:1px solid #dde4ee;border-radius:6px 6px 0 0;padding:3px 7px;}
+  .mock .tabs .t.on{background:var(--teal);color:#fff;border-color:var(--teal);}
+  .mock .fake-field{height:11px;background:#e3e9f1;border-radius:4px;margin:7px 0;}
+  .mock .fake-field.s{width:55%;}
+  .mock .label-tag{display:inline-block;font-size:11px;font-weight:700;color:#fff;border-radius:5px;
+       padding:2px 7px;margin-top:6px;}
+  .mock .pv-title{font-size:12px;font-weight:800;color:var(--navy);margin-bottom:6px;}
+  .mock .pv-line{height:8px;background:#dfe4ec;border-radius:3px;margin:5px 0;}
+  .callout-pin{position:relative;}
+
+  /* 지도 설명 핀 */
+  .pins{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;}
+  @media(max-width:620px){.pins{grid-template-columns:1fr;}}
+  .pin{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--line);
+       border-radius:10px;padding:10px 12px;font-size:14px;}
+  .pin .dot{flex:none;width:24px;height:24px;border-radius:50%;color:#fff;font-weight:800;font-size:13px;
+       display:flex;align-items:center;justify-content:center;background:var(--teal);}
+
+  /* ===== 3대 규칙 카드 ===== */
+  .rules{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  @media(max-width:720px){.rules{grid-template-columns:1fr;}}
+  .rule{background:#fff;border:1px solid var(--line);border-top:5px solid var(--teal);border-radius:12px;
+       padding:16px 16px 18px;text-align:center;}
+  .rule .ico{font-size:34px;line-height:1;}
+  .rule h3{margin:10px 0 6px;font-size:16px;color:var(--navy);}
+  .rule p{margin:0;font-size:13.5px;color:#4a5566;}
+
+  /* ===== 섹션별 요령 (아코디언 카드) ===== */
+  .steps details{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+  .steps summary{list-style:none;cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:12px;}
+  .steps summary::-webkit-details-marker{display:none;}
+  .steps .chip{flex:none;font-weight:800;font-size:13px;color:#fff;background:var(--navy);
+       border-radius:7px;padding:4px 10px;min-width:64px;text-align:center;}
+  .steps summary .ttl{font-size:16px;font-weight:800;color:var(--navy);flex:1;}
+  .steps summary .arrow{color:var(--muted);font-size:13px;transition:transform .2s;}
+  .steps details[open] summary .arrow{transform:rotate(90deg);}
+  .steps .content{padding:2px 18px 18px 18px;border-top:1px dashed var(--line);}
+  .steps .content ul{margin:12px 0 0;padding-left:20px;}
+  .steps .content li{margin-bottom:7px;font-size:14.5px;}
+  .steps .what{background:var(--bluebg);border-radius:8px;padding:10px 14px;font-size:14px;color:var(--blue);
+       margin-top:12px;}
+  .steps .what b{color:var(--navy);}
+
+  /* 강조 박스 */
+  .tip{border-radius:10px;padding:12px 16px;margin:14px 0;font-size:14.5px;display:flex;gap:10px;align-items:flex-start;}
+  .tip .i{font-size:20px;line-height:1.2;flex:none;}
+  .tip.warn{background:var(--amberbg);border:1px solid #f0d98a;color:#7a5200;}
+  .tip.good{background:var(--greenbg);border:1px solid #b6e0c6;color:#155f3c;}
+  .tip.info{background:var(--bluebg);border:1px solid #c2cfe6;color:var(--blue);}
+  .tip.red{background:#fdecea;border:1px solid #f2b8b1;color:var(--red);}
+
+  code.k{background:#eef2f7;border:1px solid #dde4ee;border-radius:5px;padding:1px 6px;font-size:13px;
+       font-family:inherit;font-weight:700;color:var(--navy);}
+  .pill{display:inline-block;font-size:12px;font-weight:700;border-radius:20px;padding:2px 10px;}
+  .pill.red{background:#fdecea;color:var(--red);}
+  .pill.blue{background:var(--bluebg);color:var(--blue);}
+
+  /* FAQ */
+  .faq details{border-bottom:1px solid var(--line);}
+  .faq summary{cursor:pointer;padding:14px 4px;font-weight:700;font-size:15.5px;color:var(--navy);list-style:none;}
+  .faq summary::-webkit-details-marker{display:none;}
+  .faq summary::before{content:"Q  ";color:var(--teal);font-weight:800;}
+  .faq .a{padding:0 4px 16px 22px;font-size:14.5px;color:#3c4656;}
+
+  footer{margin-top:50px;text-align:center;color:var(--muted);font-size:13px;}
+  .toplink{position:fixed;right:18px;bottom:18px;background:var(--navy);color:#fff;text-decoration:none;
+       width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+       font-size:20px;box-shadow:0 4px 12px rgba(0,0,0,.25);}
+
+  @media print{
+    nav.toc,.toplink,.close-hint{display:none;}
+    body{background:#fff;font-size:12pt;}
+    .card,.rule,.mock,.flow .body,.steps details{break-inside:avoid;}
+    header.top{background:var(--navy)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top" id="top">
+  <div class="eyebrow">서울사이버대학교 · 교무팀</div>
+  <h1>📖 교육과정 개편보고서 입력 매뉴얼</h1>
+  <p>처음 쓰시는 분도 이 문서만 보면 됩니다. 컴퓨터에 익숙하지 않으셔도 괜찮습니다 —
+     화면 순서대로, 그림을 따라 천천히 하시면 됩니다.</p>
+  <span class="close-hint">이 창은 <b>입력 화면과 나란히 띄워두고</b> 보셔도 됩니다. 다 보시면 그냥 탭을 닫으세요.</span>
+</header>
+
+<nav class="toc">
+  <div class="inner">
+    <a href="#flow">① 전체 흐름</a>
+    <a href="#map">② 화면 보는 법</a>
+    <a href="#rules">③ 꼭 아는 3가지</a>
+    <a href="#sections">④ 항목별 작성요령</a>
+    <a href="#submit">⑤ 제출·다운로드</a>
+    <a href="#faq">⑥ 자주 묻는 질문</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <!-- ① 전체 흐름 -->
+  <section id="flow">
+    <div class="sec-head">
+      <div class="n">1</div>
+      <div><h2>전체 흐름 — 6단계면 끝납니다</h2>
+      <div class="sub">아래 순서대로만 하시면 보고서가 완성됩니다.</div></div>
+    </div>
+
+    <div class="card flow">
+      <div class="step">
+        <div class="bubble">1</div>
+        <div class="body"><h3>로그인</h3>
+          <p>학교 <code class="k">iscu.ac.kr</code> 구글 계정으로 로그인합니다. 버튼 한 번이면 됩니다.</p></div>
+      </div>
+      <div class="step">
+        <div class="bubble">2</div>
+        <div class="body"><h3>내 학과 보고서 열기</h3>
+          <p>목록에서 우리 학과 줄을 찾아 <span class="tagbtn">작성</span> 버튼을 누릅니다.</p></div>
+      </div>
+      <div class="step">
+        <div class="bubble">3</div>
+        <div class="body"><h3>항목을 채웁니다</h3>
+          <p>왼쪽에 내용을 입력하면 오른쪽 미리보기에 실제 보고서 모양이 바로 나타납니다.</p></div>
+      </div>
+      <div class="step">
+        <div class="bubble">4</div>
+        <div class="body"><h3>저장</h3>
+          <p>탭(항목)을 바꾸기 전에 <span class="tagbtn">이 섹션 저장</span>을 눌러 저장합니다. <b>항목마다 저장</b>이 원칙입니다.</p></div>
+      </div>
+      <div class="step">
+        <div class="bubble">5</div>
+        <div class="body"><h3>제출</h3>
+          <p>모든 항목을 다 채우면 오른쪽 위 <span class="tagbtn">제출</span> 버튼을 누릅니다.</p></div>
+      </div>
+      <div class="step">
+        <div class="bubble">6</div>
+        <div class="body"><h3>(선택) 다운로드</h3>
+          <p>필요하면 <span class="tagbtn">HTML 다운로드</span>로 완성본 파일을 내 컴퓨터에 저장할 수 있습니다.</p></div>
+      </div>
+    </div>
+
+    <div class="tip good"><span class="i">✅</span>
+      <div><b>서두르지 않으셔도 됩니다.</b> 항목을 채우다 <u>탭 사이를 오가며</u> 얼마든지 다시 고칠 수 있고,
+      <b>제출 전</b>이라면 몇 번이든 수정·저장이 가능합니다. 오른쪽 미리보기로 확인하며 천천히 진행하세요.</div></div>
+  </section>
+
+  <!-- ② 화면 보는 법 -->
+  <section id="map">
+    <div class="sec-head">
+      <div class="n">2</div>
+      <div><h2>작성 화면 보는 법</h2>
+      <div class="sub">화면은 크게 <b>왼쪽 = 입력 / 오른쪽 = 미리보기</b> 두 칸으로 나뉩니다.</div></div>
+    </div>
+
+    <div class="card">
+      <div class="mock" aria-label="작성 화면 모형">
+        <div class="bar">
+          <span>📝 2027학년도 ○○학과</span>
+          <span class="btns"><span>목록</span><span>이 섹션 저장</span><span>제출</span><span>HTML 다운로드</span></span>
+        </div>
+        <div class="split">
+          <div class="left">
+            <div class="tabs">
+              <span class="t on">1-1 교육목표</span><span class="t">1-2 체계표</span>
+              <span class="t">1-3 로드맵</span><span class="t">2 개편방향</span>
+              <span class="t">3-1 변경내역</span><span class="t">3-2 팀티칭</span><span class="t">별지1</span>
+            </div>
+            <div class="fake-field"></div>
+            <div class="fake-field s"></div>
+            <span class="label-tag" style="background:var(--red)">빨간 글씨 = 내가 고친 곳</span>
+            <div class="fake-field"></div>
+          </div>
+          <div class="right">
+            <div class="pv-title">← 미리보기 (실제 보고서 모양)</div>
+            <div class="pv-line"></div><div class="pv-line" style="width:80%"></div>
+            <div class="pv-line" style="width:90%"></div><div class="pv-line" style="width:60%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pins">
+        <div class="pin"><div class="dot">1</div><div><b>위쪽 탭 7개</b> = 보고서의 7개 항목입니다. 탭을 눌러 항목 사이를 오갑니다.</div></div>
+        <div class="pin"><div class="dot">2</div><div><b>왼쪽 칸</b>에 내용을 입력합니다. 칸을 클릭하고 글자를 넣으면 됩니다.</div></div>
+        <div class="pin"><div class="dot">3</div><div><b>오른쪽 칸</b>은 미리보기입니다. 입력하는 즉시 완성 모양이 보입니다. (여기는 고치는 곳이 아닙니다)</div></div>
+        <div class="pin"><div class="dot">4</div><div><b>맨 위 버튼</b> = 목록으로 가기 · 저장 · 제출 · 다운로드.</div></div>
+      </div>
+
+      <div class="tip info"><span class="i">🟥</span>
+        <div><b>빨간 글씨의 뜻:</b> 작년 내용을 그대로 불러온 항목을, 여러분이 <u>새로 고치면</u> 그 부분이 빨갛게 표시됩니다.
+        “내가 올해 바꾼 곳”이라는 표시일 뿐, 오류가 아닙니다. 옆의 <code class="k">되돌리기</code>를 누르면 작년 내용으로 돌아갑니다.</div></div>
+    </div>
+  </section>
+
+  <!-- ③ 꼭 아는 3가지 -->
+  <section id="rules">
+    <div class="sec-head">
+      <div class="n">3</div>
+      <div><h2>이것만은 꼭 — 3가지 규칙</h2>
+      <div class="sub">이 세 가지만 기억하면 실수가 없습니다.</div></div>
+    </div>
+
+    <div class="rules">
+      <div class="rule">
+        <div class="ico">💾</div>
+        <h3>① 항목마다 저장</h3>
+        <p>다른 탭으로 넘어가기 <b>전에</b> <code class="k">이 섹션 저장</code>을 누르세요. 저장 안 하고 탭을 바꾸면 방금 쓴 내용이 사라질 수 있습니다.</p>
+      </div>
+      <div class="rule">
+        <div class="ico">👀</div>
+        <h3>② 오른쪽으로 확인</h3>
+        <p>입력이 제대로 됐는지는 <b>오른쪽 미리보기</b>로 바로 확인하세요. 실제 인쇄물과 똑같은 모양입니다.</p>
+      </div>
+      <div class="rule">
+        <div class="ico">🚩</div>
+        <h3>③ 제출은 맨 마지막</h3>
+        <p>모든 항목을 다 채우고 확인한 뒤 <code class="k">제출</code>하세요. 제출 전이라면 몇 번이든 다시 고쳐 저장할 수 있습니다.</p>
+      </div>
+    </div>
+
+    <div class="tip warn"><span class="i">⚠️</span>
+      <div>인터넷이 끊겨도 <b>이 컴퓨터에 임시 백업</b>이 자동으로 남습니다. 다시 접속하면 “임시 백업을 복구할까요?”라고
+      물어봅니다 — <b>‘예’</b>를 누른 뒤, 내용을 확인하고 다시 <code class="k">저장</code>하시면 됩니다.</div></div>
+  </section>
+
+  <!-- ④ 항목별 작성요령 -->
+  <section id="sections">
+    <div class="sec-head">
+      <div class="n">4</div>
+      <div><h2>항목별 작성 요령 (탭 순서대로)</h2>
+      <div class="sub">각 줄을 눌러 펼치면 자세한 설명이 나옵니다. 화면 안에도 파란 ‘작성 안내’ 박스가 함께 있습니다.</div></div>
+    </div>
+
+    <div class="steps">
+      <details open>
+        <summary><span class="chip">1-1</span><span class="ttl">교육목표 · 인재상</span><span class="arrow">▶</span></summary>
+        <div class="content">
+          <div class="what"><b>무엇을 쓰나요?</b> 우리 학과가 무엇을 목표로, 어떤 인재를 기르는지를 적는 <b>가장 기본</b>이 되는 항목입니다.</div>
+          <ul>
+            <li><b>학과 교육목표</b>는 대표적인 것 <b>3~4개</b>만 적습니다. <code class="k">+ 추가</code> 버튼으로 줄을 늘립니다.</li>
+            <li><b>인재상</b>과 <b>직무역량</b>도 같은 방식으로 추가합니다.</li>
+            <li>왼쪽 표의 <b>대학 항목(이념·목적 등)은 이미 정해진 값</b>이라 고칠 수 없습니다. 그대로 두세요.</li>
+            <li>작년 내용이 불러와진 경우, 고친 부분은 <span class="pill red">빨간 글씨</span>로 표시됩니다.</li>
+          </ul>
+          <div class="tip info"><span class="i">🔗</span><div>여기서 적은 교육목표·인재상·직무역량은 <b>1-2 항목에 자동으로 다시 나타납니다.</b> 그러니 1-1을 먼저 정확히 채우세요.</div></div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="chip">1-2</span><span class="ttl">특성화 교육체계표</span><span class="arrow">▶</span></summary>
+        <div class="content">
+          <div class="what"><b>무엇을 쓰나요?</b> 우리 학과의 <b>특성화(강점) 방향</b>과, 그것을 어떤 트랙·교육과정으로 실현하는지를 표로 정리합니다.</div>
+          <ul>
+            <li>맨 위 <b>교육목표·인재상·직무역량</b>은 <b>1-1에서 자동으로 채워집니다</b>(읽기전용 — 여기선 못 고칩니다).</li>
+            <li><b>학과 특성화 한 줄</b>: 우리 학과 특성화를 한 문장으로 적습니다.</li>
+            <li><b>특성화 트랙</b>: <code class="k">+ 트랙 추가</code>로 줄을 만들고, 트랙 이름·배양역량(C·J 코드)·교육과정을 채웁니다. <b>최대 6개</b>까지.</li>
+            <li>교육과정의 <b>기초 → 심화 → 응용</b>은 어려움 정도가 아니라 <b>‘먼저 듣는 순서(선이수)’</b>를 뜻합니다.</li>
+            <li><b>성과증거</b>는 학생이 <u>내보이는 산출물</u>(작품·수행·기록)로 적습니다. <span class="pill blue">만족도·수강생 수는 안 됩니다.</span></li>
+          </ul>
+          <div class="tip good"><span class="i">💡</span><div>배양역량 칸에는 <b>C코드(핵심역량)를 반드시 함께</b> 표기하세요. 비교과 활동은 온라인/오프라인을 구분해 적습니다.</div></div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="chip">1-3</span><span class="ttl">교육과정 로드맵</span><span class="arrow">▶</span></summary>
+        <div class="content">
+          <div class="what"><b>무엇을 쓰나요?</b> 학년·학기별로 어떤 과목을 어느 수준에 배치하는지 <b>표(로드맵)</b>로 그립니다.</div>
+          <ul>
+            <li>표의 <b>칸을 클릭</b>해 과목을 추가합니다. <b>과목명만</b> 적으면 됩니다.</li>
+            <li>새로 생기거나 없어지는 과목은 <b>자동으로 빨갛게</b> 표시됩니다.</li>
+            <li>한 과목을 여러 학기에 여는 경우, 학기마다 표기하되 <b>같은 학기(예: 1학기·하계) 중복이면 1번만</b> 입력합니다.</li>
+            <li>1학년 과목이라도 필요하면 더 높은 수준(Lv2·Lv3) 자리에 둘 수 있습니다.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="chip">2</span><span class="ttl">개편 방향</span><span class="arrow">▶</span></summary>
+        <div class="content">
+          <div class="what"><b>무엇을 쓰나요?</b> 이번에 교육과정을 <b>왜, 어떻게</b> 바꾸는지를 서술합니다.</div>
+          <ul>
+            <li>교육과정을 <b>바꿀 때만</b> 작성합니다. 변경이 없으면 <code class="k">교육과정 변경 없음</code>에 체크하면 끝입니다.</li>
+            <li>①산업체·사회 요구 → ②학습자 수요 → ③개편 사항 → ④기대효과 순서로 칸을 채웁니다.</li>
+            <li>근거자료는 <code class="k">+ URL 링크 추가</code>로 주소를 넣거나, <code class="k">+ 파일 업로드</code>로 파일을 올립니다(각주 번호 자동).</li>
+          </ul>
+          <div class="tip info"><span class="i">📎</span><div>올린 파일은 구글 드라이브 <b>「연도/학과」 폴더</b>에 자동 저장되고, 근거 목록에 링크로 붙습니다. 올린 뒤에는 <b>2번 항목에서 한 번 저장</b>해 주세요.</div></div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="chip">3-1</span><span class="ttl">변경 내역</span><span class="arrow">▶</span></summary>
+        <div class="content">
+          <div class="what"><b>무엇을 쓰나요?</b> 과목이 <b>어떻게 바뀌었는지</b>를 한 줄에 하나씩 기록합니다.</div>
+          <ul>
+            <li><code class="k">+ 행 추가</code>로 줄을 만들고, 변경 전/후와 <b>변경 유형</b>을 고릅니다.</li>
+            <li>변경 유형: ①신설 ②폐지 ③과목명변경 ④학기변경 ⑤학년변경 ⑥학점변경 ⑦주관학과변경. <b>신설·폐지는 한 줄에 1건.</b></li>
+            <li>과목을 <b>①신설</b>로 고르면, 마지막 <b>별지1(교과목기획서)</b>도 함께 작성해야 합니다.</li>
+            <li>변경 없으면 맨 위 <code class="k">교육과정 변경 없음(3장 전체)</code>에 체크.</li>
+          </ul>
+          <div class="tip warn"><span class="i">⚠️</span><div>학교에 제출한 <b>교육과정작성표(엑셀)와 내용이 달라지지 않도록</b> 확인하세요(엑셀이 기준입니다).</div></div>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="chip">3-2</span><span class="ttl">팀티칭</span><span class="arrow">▶</span></summary>
+        <div class="content">
+          <div class="what"><b>무엇을 쓰나요?</b> 여러 교원이 함께 만든/운영하는 과목(팀티칭)이 있으면 적습니다.</div>
+          <ul>
+            <li>해당되는 과목이 없으면 <b>비워두어도 됩니다.</b></li>
+            <li><b>강의 제작에 참여한 교원만</b> 원반의 주담당이 될 수 있습니다.</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary><span class="chip">별지1</span><span class="ttl">교과목 기획서</span><span class="arrow">▶</span></summary>
+        <div class="content">
+          <div class="what"><b>무엇을 쓰나요?</b> <b>신설 과목이 있을 때만</b> 작성합니다. 새 과목의 취지와 타당성을 정리합니다.</div>
+          <ul>
+            <li>핵심역량 <b>2~4개</b>를 체크하고, 각 안에서 하위역량을 <b>1개 이상</b> 고릅니다.</li>
+            <li>개설 타당성은 <b>숫자(정량) 결과</b>로 뒷받침해야 합니다.</li>
+            <li>교과목 <b>한글명은 띄어쓰기 없이 15자 이내</b>로 적습니다.</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ⑤ 제출·다운로드 -->
+  <section id="submit">
+    <div class="sec-head">
+      <div class="n">5</div>
+      <div><h2>제출과 다운로드</h2>
+      <div class="sub">다 채우셨나요? 마지막 단계입니다.</div></div>
+    </div>
+    <div class="card">
+      <ul style="margin:0;padding-left:20px;font-size:15px;">
+        <li style="margin-bottom:9px;"><b>제출</b> — 오른쪽 위 <code class="k">제출</code> 버튼. 빠진 항목이 있으면 경고가 뜹니다. 확인 후 그대로 제출하거나, 돌아가 보완할 수 있습니다.</li>
+        <li style="margin-bottom:9px;"><b>제출 권한이 없다고 나오면</b> — 교무팀에 요청하세요. 제출 권한은 교무팀이 부여합니다.</li>
+        <li style="margin-bottom:9px;"><b>다운로드</b> — <code class="k">HTML 다운로드</code>로 완성본을 내 컴퓨터에 저장. 그 파일을 열어 <b>인쇄(Ctrl+P)</b>하면 종이 보고서가 됩니다.</li>
+        <li style="margin-bottom:9px;"><b>제출한 뒤에도 고칠 수 있어요</b> — 교무팀이 <b>마감(잠금)</b> 하기 전까지는, 내용을 그대로 수정·저장하고 <b>다시 <code class="k">제출</code></b>을 누르면 됩니다. 따로 ‘철회’ 신청을 할 필요가 없습니다.</li>
+        <li><b>마감(잠금) 된 뒤에는</b> 열람·다운로드만 됩니다. 다시 열어 고쳐야 하면 <b>교무팀에 재개방을 요청</b>하세요.</li>
+      </ul>
+    </div>
+    <div class="tip good"><span class="i">🎉</span><div>여기까지 하시면 우리 학과 보고서 작성이 <b>모두 끝난 것</b>입니다. 수고하셨습니다!</div></div>
+  </section>
+
+  <!-- ⑥ FAQ -->
+  <section id="faq">
+    <div class="sec-head">
+      <div class="n">6</div>
+      <div><h2>자주 묻는 질문</h2></div>
+    </div>
+    <div class="card faq">
+      <details><summary>잘못 눌러 내용이 지워졌어요.</summary>
+        <div class="a">아직 <b>저장 전</b>이라면 자동 임시백업이 남아 있습니다. 화면을 새로고침(F5)하면 “임시 백업을 복구할까요?”라고 물어봅니다. <b>예</b>를 누르세요. 작년값으로 되돌리려면 항목 옆 <code class="k">되돌리기</code>를 누르면 됩니다.</div></details>
+      <details><summary>빨간 글씨는 오류인가요?</summary>
+        <div class="a">아닙니다. <b>작년 내용을 올해 새로 고친 부분</b>이라는 표시일 뿐입니다. 정상입니다. 원래대로 하려면 <code class="k">되돌리기</code>를 누르세요.</div></details>
+      <details><summary>제출한 뒤에 잘못된 걸 발견했어요. 고칠 수 있나요?</summary>
+        <div class="a">교무팀이 <b>마감(잠금)</b> 하기 전이라면 <b>바로 고칠 수 있습니다.</b> 내용을 수정·저장한 뒤 다시 <code class="k">제출</code>을 누르면 재제출됩니다(따로 ‘철회’ 신청 불필요). 이미 <b>마감된 뒤</b>라면 열람·다운로드만 되므로, 교무팀에 <b>재개방을 요청</b>하세요.</div></details>
+      <details><summary>어디까지 필수인가요?</summary>
+        <div class="a">1-1·1-2·1-3은 기본으로 채웁니다. 2·3장은 <b>교육과정 변경이 있을 때만</b> 작성하고, 변경이 없으면 ‘변경 없음’ 체크로 끝냅니다. 별지1은 <b>신설 과목이 있을 때만</b> 씁니다.</div></details>
+      <details><summary>로그인이 안 돼요 / 우리 학과가 목록에 없어요.</summary>
+        <div class="a">반드시 학교 <code class="k">iscu.ac.kr</code> 계정으로 로그인해야 합니다. 개인 지메일은 안 됩니다. 학과가 안 보이면 <b>담당 학과 배정</b>이 안 된 것이니 교무팀에 요청하세요.</div></details>
+      <details><summary>여러 명이 나눠서 작성할 수 있나요?</summary>
+        <div class="a">같은 학과 담당자라면 각자 로그인해 항목을 나눠 작성할 수 있습니다. 다만 <b>같은 항목을 동시에</b> 고치면 마지막 저장이 남으니, 항목을 나눠 맡으시길 권장합니다.</div></details>
+    </div>
+
+    <div class="tip info" style="margin-top:20px;"><span class="i">☎️</span>
+      <div><b>더 도움이 필요하면</b> 교무팀으로 문의하세요. 화면 각 항목 안의 파란 <b>‘작성 안내’</b> 박스에도 규정 근거와 요령이 함께 적혀 있습니다.</div></div>
+  </section>
+
+  <footer>
+    서울사이버대학교 교무팀 · 교육과정 개편보고서 작성 시스템 — 입력 매뉴얼<br>
+    이 창은 언제든 닫으셔도 되고, 입력 화면과 나란히 띄워두셔도 됩니다.
+  </footer>
+</div>
+
+<a href="#top" class="toplink" title="맨 위로">↑</a>
+
+</body>
+</html>
